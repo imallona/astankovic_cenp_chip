@@ -19,12 +19,12 @@ BAM files
 
 ## TODO
 
-[] Retrieve data
-[] Set-up Snakepipes
-[] QC samples, clustering, inputs
-[] QC signal, controls centromeres and cFos surroundings
-[] Evaluate csaw outputs, shall centromeres be filtered out?
-[] Motif detection
+- [x] Retrieve data
+- [] Set-up Snakepipes
+- [] QC samples, clustering, inputs
+- [] QC signal, controls centromeres and cFos surroundings
+- [] Evaluate csaw outputs, shall centromeres be filtered out?
+- [] Motif detection
 
 ## Started
 
