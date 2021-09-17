@@ -52,7 +52,7 @@ chip_dict:
 EOF
 
 
-cat << EOF > "$WD"/conf/config.yaml
+cat << EOF > "$WD"/conf/chip_config.yaml
 ## General/Snakemake parameters, only used/set by wrapper or in Snakemake cmdl, but not in Snakefile
 pipeline: chip-seq
 cutntag: False # if set to True, overwrites the peakCaller and peakCallerOptions.
@@ -109,3 +109,62 @@ absBestLFC: 1
 #           --cores 32
 ################################################################################
 EOF
+
+
+cat << EOF > "$WD"/conf/mapping_config.yaml
+## General/Snakemake parameters, only used/set by wrapper or in Snakemake cmdl, but not in Snakefile
+pipeline: dna-mapping
+outdir: /home/imallona/cenp/mapping
+configFile:
+clusterConfigFile:
+local: True
+maxJobs: 5
+## directory with fastq files
+indir: /home/imallona/cenp_chip/data/fq
+## preconfigured target genomes (mm9,mm10,dm3,...) , see /path/to/snakemake_workflows/shared/organisms/
+## Value can be also path to your own genome config file!
+genome: mm10
+## FASTQ file extension (default: ".fastq.gz")
+ext: '.fq.gz'
+## paired-end read name extension (default: ['_R1', "_R2"])
+reads: [_R1, _R2]
+## mapping mode
+mode: mapping
+aligner: Bowtie2
+## Number of reads to downsample from each FASTQ file
+downsample:
+## Options for trimming
+trim: False
+trimmer: cutadapt
+trimmerOptions:
+## Bin size of output files in bigWig format
+bwBinSize: 25
+## Run FASTQC read quality control
+fastqc: false
+## Run computeGCBias quality control
+GCBias: false
+## Retain only de-duplicated reads/read pairs
+dedup: true
+## Retain only reads with at least the given mapping quality
+mapq: 30
+## Retain only reads mapping in proper pairs
+properPairs: false
+## Mate orientation in paired-end experiments for Bowtie2 mapping
+## (default "--fr" is appropriate for Illumina sequencing)
+mateOrientation: --fr
+## other Bowtie2 stuff
+insertSizeMax: 1000
+alignerOpts:
+plotFormat: png
+UMIBarcode: False
+bcPattern: NNNNCCCCCCCC #default: 4 base umi barcode, 8 base cell barcode (eg. RELACS barcode)
+UMIDedup: False
+UMIDedupSep: "_"
+UMIDedupOpts:
+## Median/mean fragment length, only relevant for single-end data (default: 200)
+fragmentLength: 150
+qualimap: true
+verbose: false
+EOF
+
+
