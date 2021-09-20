@@ -8,20 +8,24 @@ Curabitur non nisl nulla. Aliquam a turpis mauris. Nunc ac fermentum sapien. Pha
 
 ## Data origins
 
-BAM files
+FASTQ files
 
-- https://fgcz-gstore.uzh.ch/projects/p3664/Bowtie2_59014_o23972_o25127_2021-07-05--12-24-31/
-- https://fgcz-gstore.uzh.ch/projects/p3664/Bowtie2_51439_NOV494_o23103_Mouse_2020-11-06--18-05-13/
+- https://fgcz-gstore.uzh.ch/projects/p3664/NovaSeq_20210910_NOV918_o25873
+- https://fgcz-gstore.uzh.ch/projects/p3664/NovaSeq_20201030_NOV494_o23103
 
 ## Repository structure
 
-- `00_data_download` - data download
+- `00_data_download`
+- `01_create_configs` for snakePipes
+- `02_run` similarly, mapping and ChIP processing
+- `data/eigs.txt`, immediate early genes (some to be checked only at the promoter level (?))
 
 ## TODO
 
 - [x] Retrieve data
-- [] Set-up Snakepipes
-- [] QC samples, clustering, inputs
+- [x] Set-up Snakepipes
+- [r] Mapping, QC samples, clustering, inputs
+- [] ChiP norm, peak calling
 - [] QC signal, controls centromeres and cFos surroundings
 - [] Evaluate csaw outputs, shall centromeres be filtered out?
 - [] Motif detection

@@ -44,7 +44,7 @@ chip_dict:
     control: input_PTZ_2
     broad: True
   chip_HZ_rep_3:
-    control: input_HZ_3
+    control: input_HC_3
     broad: True
   chip_PTZ_3:
     control: input_PTZ_3
@@ -62,7 +62,7 @@ maxJobs: 5
 workingdir: '/home/imallona/cenp'
 ## preconfigured target genomes (mm9,mm10,dm3,...) , see /path/to/snakemake_workflows/shared/organisms/
 ## Value can be also path to your own genome config file!
-genome: mm10
+genome: /home/imallona/cenp_chip/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml
 ## use spikein genome for normalization?
 useSpikeInForNorm: false
 getSizeFactorsFrom: genome

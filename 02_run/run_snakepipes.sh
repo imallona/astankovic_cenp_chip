@@ -113,3 +113,11 @@ DNA-mapping -c "$WD"/conf/mapping_config.yaml \
 #           --config "$WD"/conf/chip_config.yaml \
 #           --directory "$WD"/chip \
 #           --cores "$NTHREADS"
+
+mkdir -p "$WD"/chip
+cd $_
+
+ChIP-seq -d "$WD"/chip \
+         "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
+         -c "$WD"/conf/chip_config.yaml \
+         "$WD"/conf/chip_dict.yaml
