@@ -15,39 +15,39 @@ cd "$_"
 
 cat << EOF > "$WD"/conf/conditions.conf
 name	condition
-IP_HC	hc
-IP_PTZ	ptz
-Input_HC	hc
-Input_PTZ	ptz
-1-HC_Input_rep_2	hc
-2-PTZ_Input_rep_2	ptz
-3-HC_Chip_rep_2	hc
-4-PTZ_Chip_rep_2	ptz
-5-HC_Input_rep_3	hc
-6-PTZ_Input_rep_3	ptz
-7-HC_Chip_rep_3	hc
-8-PTZ_Chip_rep_3	ptz
+input_HC_1	hc
+input_PTZ_1	ptz
+input_HC_2	hc
+input_PTZ_2	ptz
+input_HC_3	hc
+input_PTZ_3	ptz
+chip_HC_1	hc
+chip_PTZ_1	ptz
+chip_HC_2	hc
+chip_PTZ_2	ptz
+chip_HC_3	hc
+chip_PTZ_3	ptz
 EOF
 
 cat << EOF > "$WD"/conf/chip_dict.yaml
 chip_dict:
-  IP_HC:
-    control: Input_HC
+  chip_HC_1:
+    control: input_HC_1
     broad: True
-  IP_PTZ:
-    control: Input_PTZ
+  chip_PTZ_1:
+    control: input_PTZ_1
     broad: True
-  3-HC_Chip_rep_2:
-    control: 1-HC_Input_rep_2
+  chip_HC_2:
+    control: input_HC_2
     broad: True
-  4-PTZ_Chip_rep_2:
-    control: 2-PTZ_Input_rep_2
+  chip_PTZ_2:
+    control: input_PTZ_2
     broad: True
-  7-HC_Chip_rep_3:
-    control: 5-HC_Input_rep_3
+  chip_HZ_rep_3:
+    control: input_HZ_3
     broad: True
-  8-PTZ_Chip_rep_3:
-    control: 6-PTZ_Input_rep_3
+  chip_PTZ_3:
+    control: input_PTZ_3
     broad: True
 EOF
 
@@ -125,7 +125,7 @@ indir: /home/imallona/cenp_chip/data/fq
 ## Value can be also path to your own genome config file!
 genome: mm10
 ## FASTQ file extension (default: ".fastq.gz")
-ext: '.fq.gz'
+ext: '.fastq.gz'
 ## paired-end read name extension (default: ['_R1', "_R2"])
 reads: [_R1, _R2]
 ## mapping mode
@@ -134,7 +134,7 @@ aligner: Bowtie2
 ## Number of reads to downsample from each FASTQ file
 downsample:
 ## Options for trimming
-trim: False
+trim: True
 trimmer: cutadapt
 trimmerOptions:
 ## Bin size of output files in bigWig format
@@ -166,5 +166,3 @@ fragmentLength: 150
 qualimap: true
 verbose: false
 EOF
-
-
