@@ -13,20 +13,21 @@ cd "$_"
 mkdir conf
 cd "$_"
 
+TAB="$(printf '\t')"
 cat << EOF > "$WD"/conf/conditions.conf
-name	condition
-input_HC_1	hc
-input_PTZ_1	ptz
-input_HC_2	hc
-input_PTZ_2	ptz
-input_HC_3	hc
-input_PTZ_3	ptz
-chip_HC_1	hc
-chip_PTZ_1	ptz
-chip_HC_2	hc
-chip_PTZ_2	ptz
-chip_HC_3	hc
-chip_PTZ_3	ptz
+name${TAB}batch${TAB}condition
+input_HC_1${TAB}b1${TAB}hc
+input_PTZ_1${TAB}b1${TAB}ptz
+input_HC_2${TAB}b2${TAB}hc
+input_PTZ_2${TAB}b2${TAB}ptz
+input_HC_3${TAB}b2${TAB}hc
+input_PTZ_3${TAB}b2${TAB}ptz
+chip_HC_1${TAB}b1${TAB}hc
+chip_PTZ_1${TAB}b1${TAB}ptz
+chip_HC_2${TAB}b2${TAB}hc
+chip_PTZ_2${TAB}b2${TAB}ptz
+chip_HC_3${TAB}b2${TAB}hc
+chip_PTZ_3${TAB}b2${TAB}ptz
 EOF
 
 cat << EOF > "$WD"/conf/chip_dict.yaml
@@ -43,11 +44,11 @@ chip_dict:
   chip_PTZ_2:
     control: input_PTZ_2
     broad: True
-  chip_HZ_rep_3:
-    control: input_HC_3
+  chip_HC_3:
+    control: input_HC_2
     broad: True
   chip_PTZ_3:
-    control: input_PTZ_3
+    control: input_PTZ_2
     broad: True
 EOF
 
@@ -56,10 +57,10 @@ cat << EOF > "$WD"/conf/chip_config.yaml
 ## General/Snakemake parameters, only used/set by wrapper or in Snakemake cmdl, but not in Snakefile
 pipeline: chip-seq
 cutntag: False # if set to True, overwrites the peakCaller and peakCallerOptions.
-configFile: /home/imallona/cenp/conf/chip_dict.yaml
+configFile: /home/imallona/cenp_chip/conf/chip_dict.yaml
 local: true
 maxJobs: 5
-workingdir: '/home/imallona/cenp'
+workingdir: '/home/imallona/cenp_chip/mapping'
 ## preconfigured target genomes (mm9,mm10,dm3,...) , see /path/to/snakemake_workflows/shared/organisms/
 ## Value can be also path to your own genome config file!
 genome: /home/imallona/cenp_chip/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml
@@ -84,7 +85,7 @@ bigWigType: both
 fragmentLength: 150
 verbose: false
 # sampleSheet_DB
-sampleSheet: /home/imallona/cenp/conf/conditions.conf
+sampleSheet: /home/imallona/cenp_chip/conf/conditions.conf
 # windowSize
 windowSize: 150
 #### Flag to control the pipeline entry point
@@ -94,7 +95,7 @@ plotFormat: png
 ##dummy string to skip filtering annotation
 filterGTF:
 ##parameters to filter DB regions on
-fdr: 0.05
+fdr: 0.1
 absBestLFC: 1
 ################################################################################
 # Call snakemake directly, i.e. without using the wrapper script:
@@ -114,7 +115,7 @@ EOF
 cat << EOF > "$WD"/conf/mapping_config.yaml
 ## General/Snakemake parameters, only used/set by wrapper or in Snakemake cmdl, but not in Snakefile
 pipeline: dna-mapping
-outdir: /home/imallona/cenp/mapping
+outdir: /home/imallona/cenp_chip/mapping
 configFile:
 clusterConfigFile:
 local: True
