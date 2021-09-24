@@ -13,22 +13,28 @@ cd "$_"
 mkdir conf
 cd "$_"
 
+# TAB="$(printf '\t')"
+# cat << EOF > "$WD"/conf/conditions.conf
+# name${TAB}batch${TAB}condition
+# chip_HC_1${TAB}b1${TAB}hc
+# chip_PTZ_1${TAB}b1${TAB}ptz
+# chip_HC_2${TAB}b2${TAB}hc
+# chip_PTZ_2${TAB}b2${TAB}ptz
+# chip_HC_3${TAB}b2${TAB}hc
+# chip_PTZ_3${TAB}b2${TAB}ptz
+# EOF
+
 TAB="$(printf '\t')"
 cat << EOF > "$WD"/conf/conditions.conf
-name${TAB}batch${TAB}condition
-input_HC_1${TAB}b1${TAB}hc
-input_PTZ_1${TAB}b1${TAB}ptz
-input_HC_2${TAB}b2${TAB}hc
-input_PTZ_2${TAB}b2${TAB}ptz
-input_HC_3${TAB}b2${TAB}hc
-input_PTZ_3${TAB}b2${TAB}ptz
-chip_HC_1${TAB}b1${TAB}hc
-chip_PTZ_1${TAB}b1${TAB}ptz
-chip_HC_2${TAB}b2${TAB}hc
-chip_PTZ_2${TAB}b2${TAB}ptz
-chip_HC_3${TAB}b2${TAB}hc
-chip_PTZ_3${TAB}b2${TAB}ptz
+name${TAB}condition
+chip_HC_1${TAB}hc
+chip_PTZ_1${TAB}ptz
+chip_HC_2${TAB}hc
+chip_PTZ_2${TAB}ptz
+chip_HC_3${TAB}hc
+chip_PTZ_3${TAB}ptz
 EOF
+
 
 cat << EOF > "$WD"/conf/chip_dict.yaml
 chip_dict:
@@ -71,7 +77,7 @@ spikeinExt: _spikein
 spikein_bin_size: 1000
 ## Which peak caller to use?
 peakCaller: 'MACS2'
-peakCallerOptions: --qvalue 0.001
+peakCallerOptions: --qvalue 0.05
 ##MACS2 specific options:
 BAMPeaks: --mfold 0 50
 BAMPEPeaks:
@@ -87,7 +93,7 @@ verbose: false
 # sampleSheet_DB
 sampleSheet: /home/imallona/cenp_chip/conf/conditions.conf
 # windowSize
-windowSize: 150
+windowSize: 300
 #### Flag to control the pipeline entry point
 bamExt: '.bam'
 fromBAM:
@@ -147,7 +153,7 @@ GCBias: false
 ## Retain only de-duplicated reads/read pairs
 dedup: true
 ## Retain only reads with at least the given mapping quality
-mapq: 30
+mapq: 5
 ## Retain only reads mapping in proper pairs
 properPairs: false
 ## Mate orientation in paired-end experiments for Bowtie2 mapping

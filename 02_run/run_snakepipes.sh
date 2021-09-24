@@ -86,10 +86,10 @@ EOF
 # bam2fastqs, and start from the beginning - fastqs
 
 mkdir -p "$WD"/mapping
-# snakemake --snakefile "$SP"/workflows/DNA-mapping/Snakefile \
-#           --config "$WD"/conf/mapping_config.yaml \
-#           --directory "$WD"/mapping \
-#           --cores "$NTHREADS"
+snakemake --snakefile "$SP"/workflows/DNA-mapping/Snakefile \
+          --config "$WD"/conf/mapping_config.yaml \
+          --directory "$WD"/mapping \
+          --cores "$NTHREADS"
 
 # DNA-mapping -i "$WD"/data/fq -o "$WD"/mapping --mapq 30 -j "$NTHREADS" --dedup mm10 \
 #             --trim True \
@@ -98,7 +98,7 @@ mkdir -p "$WD"/mapping
 #             --plotFormat both
 
 DNA-mapping -c "$WD"/conf/mapping_config.yaml \
-            -i "$WD"/data/fq -o "$WD"/mapping --mapq 30 -j "$NTHREADS" --dedup \
+            -i "$WD"/data/fq -o "$WD"/mapping --mapq 5 -j "$NTHREADS" --dedup \
             --trim \
             --local \
             --trimmer trimgalore \
@@ -114,7 +114,6 @@ DNA-mapping -c "$WD"/conf/mapping_config.yaml \
 #           --directory "$WD"/chip \
 #           --cores "$NTHREADS"
 
-mkdir -p "$WD"/chip
 cd $WD
 
 ChIP-seq -d "$WD"/mapping \
