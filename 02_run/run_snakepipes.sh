@@ -7,6 +7,7 @@
 
 SP=/home/imallona/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes
 WD='/home/imallona/cenp_chip'
+SRC='~/src/astankovic_cenp_chip'
 NTHREADS=30
 
 source ~/miniconda3/bin/activate
@@ -122,3 +123,13 @@ ChIP-seq -d "$WD"/mapping \
          -c "$WD"/conf/chip_config.yaml \
          "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
          "$WD"/conf/chip_dict.yaml
+
+# rather, let's run the csaw manually
+echo ~/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rules/CSAW.snakefile
+
+cd $SRC/02_run
+# cp ~/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rscripts/CSAW.R csaw_adhoc.R
+# cp /home/imallona/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rscripts/CSAW_report.Rmd csaw_report_adhoc.Rmd
+
+# knit the add hoc
+Rscript 'rmarkdown::render("/home/imallona/src/astankovic_cenp_chip/02_run/csaw_report_adhoc.Rmd")'

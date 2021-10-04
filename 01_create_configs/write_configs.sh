@@ -24,6 +24,17 @@ cd "$_"
 # chip_PTZ_3${TAB}b2${TAB}ptz
 # EOF
 
+# TAB="$(printf '\t')"
+# cat << EOF > "$WD"/conf/conditions.conf
+# name${TAB}condition
+# chip_HC_1${TAB}hc
+# chip_PTZ_1${TAB}ptz
+# chip_HC_2${TAB}hc
+# chip_PTZ_2${TAB}ptz
+# chip_HC_3${TAB}hc
+# chip_PTZ_3${TAB}ptz
+# EOF
+
 TAB="$(printf '\t')"
 cat << EOF > "$WD"/conf/conditions.conf
 name${TAB}condition
@@ -34,7 +45,6 @@ chip_PTZ_2${TAB}ptz
 chip_HC_3${TAB}hc
 chip_PTZ_3${TAB}ptz
 EOF
-
 
 cat << EOF > "$WD"/conf/chip_dict.yaml
 chip_dict:
@@ -93,7 +103,7 @@ verbose: false
 # sampleSheet_DB
 sampleSheet: /home/imallona/cenp_chip/conf/conditions.conf
 # windowSize
-windowSize: 300
+windowSize: 150
 #### Flag to control the pipeline entry point
 bamExt: '.bam'
 fromBAM:
@@ -101,7 +111,7 @@ plotFormat: png
 ##dummy string to skip filtering annotation
 filterGTF:
 ##parameters to filter DB regions on
-fdr: 0.1
+fdr: 0.5
 absBestLFC: 1
 ################################################################################
 # Call snakemake directly, i.e. without using the wrapper script:
