@@ -103,7 +103,7 @@ verbose: false
 # sampleSheet_DB
 sampleSheet: /home/imallona/cenp_chip/conf/conditions.conf
 # windowSize
-windowSize: 150
+windowSize: 100
 #### Flag to control the pipeline entry point
 bamExt: '.bam'
 fromBAM:

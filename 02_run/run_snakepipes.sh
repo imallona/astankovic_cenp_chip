@@ -132,4 +132,4 @@ cd $SRC/02_run
 # cp /home/imallona/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rscripts/CSAW_report.Rmd csaw_report_adhoc.Rmd
 
 # knit the add hoc
-Rscript 'rmarkdown::render("/home/imallona/src/astankovic_cenp_chip/02_run/csaw_report_adhoc.Rmd")'
+R -e 'rmarkdown::render("/home/imallona/src/astankovic_cenp_chip/02_run/csaw_report_adhoc.Rmd")'
