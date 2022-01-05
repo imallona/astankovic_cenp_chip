@@ -4,6 +4,8 @@
 ##
 ## Izaskun Mallona
 ## 16 sept 2021
+## Updated 05 Jan 2022 to handle the sample swap and the mapping (dedup and not) and
+##  peak calling steps
 
 SP=/home/imallona/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes
 WD='/home/imallona/cenp_chip'
@@ -83,23 +85,76 @@ spikein_genes_gtf: ''
 star_index: /home/imallona/cenp_chip/indices/GRCm38_gencode_release19/STARIndex/
 EOF
 
+## 2021 stuff start
 
-# bam2fastqs, and start from the beginning - fastqs
 
-mkdir -p "$WD"/mapping
-snakemake --snakefile "$SP"/workflows/DNA-mapping/Snakefile \
-          --config "$WD"/conf/mapping_config.yaml \
-          --directory "$WD"/mapping \
-          --cores "$NTHREADS"
+# # bam2fastqs, and start from the beginning - fastqs
 
-# DNA-mapping -i "$WD"/data/fq -o "$WD"/mapping --mapq 30 -j "$NTHREADS" --dedup mm10 \
-#             --trim True \
+# mkdir -p "$WD"/mapping
+# snakemake --snakefile "$SP"/workflows/DNA-mapping/Snakefile \
+#           --config "$WD"/conf/mapping_config.yaml \
+#           --directory "$WD"/mapping \
+#           --cores "$NTHREADS"
+
+
+# DNA-mapping -c "$WD"/conf/mapping_config.yaml \
+#             -i "$WD"/data/fq -o "$WD"/mapping --mapq 5 -j "$NTHREADS" --dedup \
+#             --trim \
+#             --local \
 #             --trimmer trimgalore \
 #             --bwBinSize 25 \
-#             --plotFormat both
+#             --plotFormat png \
+#             --aligner Bowtie2 \
+#             "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml
 
-DNA-mapping -c "$WD"/conf/mapping_config.yaml \
-            -i "$WD"/data/fq -o "$WD"/mapping --mapq 5 -j "$NTHREADS" --dedup \
+
+# # mkdir -p "$WD"/chip           
+# # snakemake --snakefile "$SP"/workflows/ChIP-seq/Snakefile \
+# #           --config "$WD"/conf/chip_config.yaml \
+# #           --directory "$WD"/chip \
+# #           --cores "$NTHREADS"
+
+# cd $WD
+
+# ChIP-seq -d "$WD"/mapping \
+#          --local \
+#          -j "$NTHREADS" \
+#          -c "$WD"/conf/chip_config.yaml \
+#          "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
+#          "$WD"/conf/chip_dict.yaml
+
+# # rather, let's run the csaw manually
+# echo ~/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rules/CSAW.snakefile
+
+# cd $SRC/02_run
+# # cp ~/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rscripts/CSAW.R csaw_adhoc.R
+# # cp /home/imallona/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rscripts/CSAW_report.Rmd csaw_report_adhoc.Rmd
+
+# # knit the add hoc
+# R -e 'rmarkdown::render("/home/imallona/src/astankovic_cenp_chip/02_run/csaw_report_adhoc.Rmd")'
+
+
+## 2021 stuff end
+
+## let's map with and without dupes, and do the chip with and without.
+##  @todo Mind this is duplicating many steps of the calculation unnecessarily;
+##    optimization to trim and map only once pending
+
+conda activate snakePipes
+
+export PATH="/path/to/miniconda3/bin:$PATH"
+
+snakePipes info
+
+mkdir -p "$WD"/mapping_with_dupes
+# snakemake --snakefile "$SP"/workflows/DNA-mapping/Snakefile \
+#           --config "$WD"/conf/mapping_config_with_dupes.yaml \
+#           --directory "$WD"/mapping_with_dupes \
+#           --cores "$NTHREADS"
+
+
+DNA-mapping -c "$WD"/conf/mapping_config_with_dupes.yaml \
+            -i "$WD"/data/fq -o "$WD"/mapping_with_dupes --mapq 5 -j "$NTHREADS" \
             --trim \
             --local \
             --trimmer trimgalore \
@@ -109,27 +164,23 @@ DNA-mapping -c "$WD"/conf/mapping_config.yaml \
             "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml
 
 
-# mkdir -p "$WD"/chip           
-# snakemake --snakefile "$SP"/workflows/ChIP-seq/Snakefile \
-#           --config "$WD"/conf/chip_config.yaml \
-#           --directory "$WD"/chip \
+## ran till here
+
+
+mkdir -p "$WD"/mapping_without_dupes
+# snakemake --snakefile "$SP"/workflows/DNA-mapping/Snakefile \
+#           --config "$WD"/conf/mapping_config_without_dupes.yaml \
+#           --directory "$WD"/mapping_without_dupes \
 #           --cores "$NTHREADS"
 
-cd $WD
 
-ChIP-seq -d "$WD"/mapping \
-         --local \
-         -j "$NTHREADS" \
-         -c "$WD"/conf/chip_config.yaml \
-         "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
-         "$WD"/conf/chip_dict.yaml
-
-# rather, let's run the csaw manually
-echo ~/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rules/CSAW.snakefile
-
-cd $SRC/02_run
-# cp ~/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rscripts/CSAW.R csaw_adhoc.R
-# cp /home/imallona/miniconda3/envs/snakePipes/lib/python3.9/site-packages/snakePipes/shared/rscripts/CSAW_report.Rmd csaw_report_adhoc.Rmd
-
-# knit the add hoc
-R -e 'rmarkdown::render("/home/imallona/src/astankovic_cenp_chip/02_run/csaw_report_adhoc.Rmd")'
+DNA-mapping -c "$WD"/conf/mapping_config_without_dupes.yaml \
+            -i "$WD"/data/fq -o "$WD"/mapping_without_dupes --mapq 5 -j "$NTHREADS" \
+            --dedup \
+            --trim \
+            --local \
+            --trimmer trimgalore \
+            --bwBinSize 25 \
+            --plotFormat png \
+            --aligner Bowtie2 \
+            "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml
