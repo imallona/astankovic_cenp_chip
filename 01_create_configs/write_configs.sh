@@ -50,20 +50,22 @@ chip_HC_3${TAB}hc
 chip_PTZ_3${TAB}ptz
 EOF
 
+
+## not broad peaks, as by Scott
 cat << EOF > "$WD"/conf/chip_dict_sample_swap_skip_third_replica.yaml
 chip_dict:
   chip_HC_1:
     control: input_HC_1
-    broad: True
+    broad: False
   chip_PTZ_1:
     control: input_PTZ_1
-    broad: True
+    broad: False
   chip_HC_2:
     control: input_PTZ_2
-    broad: True
+    broad: False
   chip_PTZ_2:
     control: input_HC_2
-    broad: True
+    broad: False
 EOF
 
 
@@ -184,11 +186,11 @@ EOF
 cat << EOF > "$WD"/conf/chip_config_sample_swap_skip_third_replica_with_dupes.yaml
 ## General/Snakemake parameters, only used/set by wrapper or in Snakemake cmdl, but not in Snakefile
 pipeline: chip-seq
-cutntag: False # if set to True, overwrites the peakCaller and peakCallerOptions.
+cutntag: False
 configFile: /home/imallona/cenp_chip/conf/chip_dict_sample_swap_skip_third_replica.yaml
 local: true
 maxJobs: 5
-workingdir: '/home/imallona/cenp_chip/mapping_with_dupes
+workingdir: /home/imallona/cenp_chip/mapping_with_dupes
 ## preconfigured target genomes (mm9,mm10,dm3,...) , see /path/to/snakemake_workflows/shared/organisms/
 ## Value can be also path to your own genome config file!
 genome: /home/imallona/cenp_chip/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml
@@ -248,7 +250,7 @@ cutntag: False # if set to True, overwrites the peakCaller and peakCallerOptions
 configFile: /home/imallona/cenp_chip/conf/chip_dict_sample_swap_skip_third_replica.yaml
 local: true
 maxJobs: 5
-workingdir: '/home/imallona/cenp_chip/mapping_without_dupes
+workingdir: /home/imallona/cenp_chip/mapping_without_dupes
 ## preconfigured target genomes (mm9,mm10,dm3,...) , see /path/to/snakemake_workflows/shared/organisms/
 ## Value can be also path to your own genome config file!
 genome: /home/imallona/cenp_chip/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml

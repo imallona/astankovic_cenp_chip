@@ -164,8 +164,6 @@ DNA-mapping -c "$WD"/conf/mapping_config_with_dupes.yaml \
             "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml
 
 
-## ran till here
-
 
 mkdir -p "$WD"/mapping_without_dupes
 # snakemake --snakefile "$SP"/workflows/DNA-mapping/Snakefile \
@@ -184,3 +182,16 @@ DNA-mapping -c "$WD"/conf/mapping_config_without_dupes.yaml \
             --plotFormat png \
             --aligner Bowtie2 \
             "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml
+
+## chip-seq run
+
+
+cd $WD
+
+ChIP-seq -d "$WD"/mapping_with_dupes \
+         --local \
+         -j "$NTHREADS" \
+         -c "$WD"/conf/chip_config_sample_swap_skip_third_replica_with_dupes.yaml \
+         "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
+         "$WD"/conf/chip_dict_sample_swap_skip_third_replica.yaml
+
