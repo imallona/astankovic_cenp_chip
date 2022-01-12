@@ -27,7 +27,7 @@ library(knitr)
 ```{r}
 opts_chunk$set(fig.width = 5,
                fig.height = 5,
-               cache = FALSE,
+               cache = TRUE,
                include = TRUE,
                dev = "png",
                cache.lazy = FALSE,
@@ -130,6 +130,48 @@ Query
 
 
 upset(fromList(d), order.by = 'freq',
+      main.bar.color = "black",
+      nsets = length(d),
+      nintersects = NA,
+      queries = list(
+          list(query = intersects,
+               color = 'orange',
+               params = list("scott_hc", "HC_1_without_dupes"), active = T),
+          list(query = intersects,
+               color = 'blue',
+               params = list("scott_ptz", "PTZ_1_without_dupes"), active = T),
+          list(query = intersects,
+               color = 'orange',
+               params = list("HC_1_without_dupes", "PTZ_2_without_dupes"), active = T),
+          list(query = intersects,
+               color = 'blue',
+               params = list("PTZ_1_without_dupes", "HC_2_without_dupes"), active = T)
+          ),
+      set.metadata = list(data = metadata,
+                          plots = list(
+                              list(type = "text", column = "treatment",
+                                   assign = 2, colors = c(ptz = "blue",
+                                                           hc = "orange")),
+                              list(type = "text", column = "user",
+                                   assign = 2, colors = c(scott = "black",
+                                                           izaskun = "red")),
+                              list(type = "text", column = "dupes",
+                                   assign = 2, colors = c(with = "forestgreen",
+                                                           without = "navy", 
+                                                           'with?' = "purple")))))
+
+
+          
+```
+
+```{r, fig.width = 15, fig.height = 4}
+
+upset(fromList(d[c('scott_hc',
+                   'scott_ptz',
+                   'HC_1_without_dupes',
+                   'HC_2_without_dupes',
+                   'PTZ_1_without_dupes',
+                   'PTZ_2_without_dupes')]), order.by = 'freq',
       main.bar.color = "black",
       nsets = length(d),
       nintersects = NA,
