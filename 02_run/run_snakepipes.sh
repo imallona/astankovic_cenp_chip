@@ -189,9 +189,22 @@ DNA-mapping -c "$WD"/conf/mapping_config_without_dupes.yaml \
 cd $WD
 
 ChIP-seq -d "$WD"/mapping_with_dupes \
+         -c "$WD"/conf/chip_config_sample_swap_skip_third_replica_with_dupes.yaml \
          --local \
          -j "$NTHREADS" \
-         -c "$WD"/conf/chip_config_sample_swap_skip_third_replica_with_dupes.yaml \
+         --qval 0.05 \
          "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
          "$WD"/conf/chip_dict_sample_swap_skip_third_replica.yaml
 
+cd $WD
+
+ChIP-seq -d "$WD"/mapping_without_dupes \
+         --local \
+         -j "$NTHREADS" \
+         --qval 0.05 \
+         -c "$WD"/conf/chip_config_sample_swap_skip_third_replica_without_dupes.yaml \
+         "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
+         "$WD"/conf/chip_dict_sample_swap_skip_third_replica.yaml
+
+
+# run check_macs_correlations.sh and check_macs_correlations.Rmd for postproc

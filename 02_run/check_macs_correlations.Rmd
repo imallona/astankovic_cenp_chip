@@ -1,0 +1,78 @@
+---
+title: "CENP MACS2 profiling - windows"
+author: "Izaskun Mallona, Mark D. Robinson lab, UZH"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+params:
+  seed: 665
+---
+
+Requires running `check_macs_correlations.sh` first
+
+
+```{r}
+library(data.table)
+library(UpSetR)
+library(knitr)
+```
+
+```{r}
+opts_chunk$set(fig.width = 5,
+               fig.height = 5,
+               cache = FALSE,
+               include = TRUE,
+               dev = "png",
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+options(bitmapType='cairo')
+
+```
+
+
+```{r}
+WD <- '/home/imallona/cenp_chip/scott'
+
+d <- list()
+fns <- list.files(WD, '*windowed.gz')
+fns <- setdiff(fns, 'windows.bed.windowed.gz')
+
+d <- lapply(fns, function(x) fread(file.path(WD, x)))
+names(d) <- fns
+
+for (item in names(d)) {
+    d[[item]] <- d[[item]][d[[item]]$V4 != 0,]
+    ## we just take regions with a peak, disregarding all others
+    d[[item]]<- paste(d[[item]]$V1, d[[item]]$V2, sep = '_')    
+}
+
+names(d) <- gsub('.bed.windowed.gz', '', names(d))
+names(d) <- gsub('without', 'without_dupes', names(d))
+names(d) <- gsub('with$', 'with_dupes', names(d))
+
+```
+
+
+```{r, fig.width = 10, fig.height = 5}
+upset(fromList(d), order.by = "freq", sets = names(d))
+```
+
+
+# Timestamp
+
+```{r sessionInfo2, cache = FALSE}
+date()
+sessionInfo()
+devtools::session_info()
+system('uname -a')
+system('whoami')
+```
