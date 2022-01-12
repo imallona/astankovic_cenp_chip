@@ -39,6 +39,17 @@ cd "$_"
 # there was a sample mix-up in the second replica of the Chip!
 #  So, basically HC is PTZ and PTZ is HC. 
 
+# TAB="$(printf '\t')"
+# cat << EOF > "$WD"/conf/conditions_sample_swap.conf
+# name${TAB}condition
+# chip_HC_1${TAB}hc
+# chip_PTZ_1${TAB}ptz
+# chip_HC_2${TAB}ptz
+# chip_PTZ_2${TAB}hc
+# chip_HC_3${TAB}hc
+# chip_PTZ_3${TAB}ptz
+# EOF
+
 TAB="$(printf '\t')"
 cat << EOF > "$WD"/conf/conditions_sample_swap.conf
 name${TAB}condition
@@ -46,10 +57,7 @@ chip_HC_1${TAB}hc
 chip_PTZ_1${TAB}ptz
 chip_HC_2${TAB}ptz
 chip_PTZ_2${TAB}hc
-chip_HC_3${TAB}hc
-chip_PTZ_3${TAB}ptz
 EOF
-
 
 ## not broad peaks, as by Scott
 cat << EOF > "$WD"/conf/chip_dict_sample_swap_skip_third_replica.yaml

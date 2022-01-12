@@ -59,13 +59,110 @@ names(d) <- gsub('.bed.windowed.gz', '', names(d))
 names(d) <- gsub('without', 'without_dupes', names(d))
 names(d) <- gsub('with$', 'with_dupes', names(d))
 
+
 ```
 
+```{r}
+metadata <- data.frame(id = names(d))
+metadata$dupes <- ifelse(grepl('without_dupes', metadata$id), yes = 'without', no = 'with')
+metadata$user <- ifelse(grepl('scott', metadata$id), yes = 'scott', no = 'izaskun')
+metadata$dupes[metadata$user == 'scott'] <- 'with?'
+
+metadata$treatment <- 'hc'
+metadata$treatment[metadata$id %in% c('scott_ptz', 'scott_ptz_lifted',
+                                      'PTZ_1_with_dupes', 'HC_2_with_dupes',
+                                      'PTZ_1_without_dupes', 'HC_2_without_dupes')] <- 'ptz'
+
+metadata
+
+```
+
+```{r}
+
+metadata <- metadata[order(metadata$treatment, metadata$id),]
+
+d <- d[rev(metadata$id)]
+```
+
+
+    
+```{r, fig.width = 10, fig.height = 5}
+upset(fromList(d), order.by = 'freq', sets = names(d),
+      set.metadata = list(data = metadata,
+                          plots = list(
+                              list(type = "text", column = "treatment",
+                                   assign = 5, colors = c(ptz = "black",
+                                                           hc = "orange")),
+                              list(type = "text", column = "user",
+                                   assign = 5, colors = c(scott = "blue",
+                                                           izaskun = "red")),
+                              list(type = "text", column = "dupes",
+                                   assign = 5, colors = c(with = "green",
+                                                           without = "navy", 
+                                                           'with?' = "purple")))))
+
+
+          
+```
 
 ```{r, fig.width = 10, fig.height = 5}
-upset(fromList(d), order.by = "freq", sets = names(d))
+upset(fromList(d), keep.order = TRUE, sets = names(d),
+      set.metadata = list(data = metadata,
+                          plots = list(
+                              list(type = "text", column = "treatment",
+                                   assign = 5, colors = c(ptz = "black",
+                                                           hc = "orange")),
+                              list(type = "text", column = "user",
+                                   assign = 5, colors = c(scott = "blue",
+                                                           izaskun = "red")),
+                              list(type = "text", column = "dupes",
+                                   assign = 5, colors = c(with = "green",
+                                                           without = "navy", 
+                                                           'with?' = "purple")))))
+
+
+          
 ```
 
+Query
+
+```{r, fig.width = 45, fig.height = 5}
+
+
+upset(fromList(d), order.by = 'freq',
+      main.bar.color = "black",
+      nsets = length(d),
+      nintersects = NA,
+      queries = list(
+          list(query = intersects,
+               color = 'orange',
+               params = list("scott_hc", "HC_1_without_dupes"), active = T),
+          list(query = intersects,
+               color = 'blue',
+               params = list("scott_ptz", "PTZ_1_without_dupes"), active = T),
+          list(query = intersects,
+               color = 'orange',
+               params = list("HC_1_without_dupes", "PTZ_2_without_dupes"), active = T),
+          list(query = intersects,
+               color = 'blue',
+               params = list("PTZ_1_without_dupes", "HC_2_without_dupes"), active = T)
+          ),
+      set.metadata = list(data = metadata,
+                          plots = list(
+                              list(type = "text", column = "treatment",
+                                   assign = 2, colors = c(ptz = "blue",
+                                                           hc = "orange")),
+                              list(type = "text", column = "user",
+                                   assign = 2, colors = c(scott = "black",
+                                                           izaskun = "red")),
+                              list(type = "text", column = "dupes",
+                                   assign = 2, colors = c(with = "forestgreen",
+                                                           without = "navy", 
+                                                           'with?' = "purple")))))
+
+
+          
+```
 
 # Timestamp
 

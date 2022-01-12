@@ -5,6 +5,7 @@
 
 WD=/home/imallona/cenp_chip/
 BEDTOOLS=~/soft/bedtools/bedtools-2.29.2/bin/bedtools
+LIFTOVER=~/soft/kent/userApps.v390/bin/liftOver
 
 scott_hc="$WD"/scott/Scott_HC__peaks.xls
 scott_ptz="$WD"/scott/Scott_PTZ__peaks.xls
@@ -44,8 +45,23 @@ done
 ln -s Scott_HC__peaks.xls scott_hc.bed
 ln -s Scott_PTZ__peaks.xls scott_ptz.bed
 
+
+
+
+## what if scott's are mm9? liftover, just in case
+
+rsync -avzP \
+        rsync://hgdownload.soe.ucsc.edu/goldenPath/mm9/liftOver/mm9ToMm10.over.chain.gz .
+
+for scott in scott_hc.bed scott_ptz.bed
+do
+    grep -E chr[0-9XY] "$scott" | cut -f1-3 | $LIFTOVER stdin mm9ToMm10.over.chain.gz \
+              "$(basename $scott .bed)_lifted.bed" \
+              "$(basename $scott .bed)_unlifted.txt"
+done
+
 for bed in $(find . -name "*bed")
 do
-    grep chr $bed | $BEDTOOLS intersect -c -a windows.bed -b - > "$bed".windowed
+    grep -E chr[0-9XY] $bed |  $BEDTOOLS intersect -c -a windows.bed -b - > "$bed".windowed
     gzip "$bed.windowed"
 done

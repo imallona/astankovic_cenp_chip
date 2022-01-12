@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ```{r}
 ## snakemake@params[["fdr"]]
-FDR <- 0.5## I know this is crazy
+FDR <- 0.05
 ## snakemake@params[["lfc"]]
 LFC <- 1
 ```

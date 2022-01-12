@@ -193,6 +193,7 @@ ChIP-seq -d "$WD"/mapping_with_dupes \
          --local \
          -j "$NTHREADS" \
          --qval 0.05 \
+         --mfold "5 50" \
          "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
          "$WD"/conf/chip_dict_sample_swap_skip_third_replica.yaml
 
@@ -202,6 +203,7 @@ ChIP-seq -d "$WD"/mapping_without_dupes \
          --local \
          -j "$NTHREADS" \
          --qval 0.05 \
+         --mfold "5 50" \
          -c "$WD"/conf/chip_config_sample_swap_skip_third_replica_without_dupes.yaml \
          "$WD"/indices/GRCm38_gencode_release19/GRCm38_gencode_release19.yaml \
          "$WD"/conf/chip_dict_sample_swap_skip_third_replica.yaml
