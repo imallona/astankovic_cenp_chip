@@ -1,0 +1,56 @@
+---
+title: "TBD"
+author: "Izaskun Mallona at Mark D. Robinson lab, University of Zurich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+params:
+  seed: 6
+---
+
+
+```{r, message = FALSE}
+suppressPackageStartupMessages({
+    library(knitr)
+    library(genomation)
+    library('TxDb.Hsapiens.UCSC.hg19.knownGene')
+}
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(autodep = TRUE, cache = TRUE, dev = "png",
+                      dev.args = list(png = list(type = "cairo")),
+                      warning = FALSE, message = FALSE)
+```
+
+
+```{r}
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+
+all_proms <- promoters(genes(txdb), upstream = 1500, downstream = 500)
+
+genes_proms <- promoters(genes(txdb), upstream = 1500, downstream = 500)
+
+genes <- genes(txdb)
+```
+
+```{r}
+
+## mind there is no binning here
+## https://bioconductor.org/packages/release/bioc/vignettes/genomation/inst/doc/GenomationManual.html#6_Use_cases_for_genomation_package
+sm <- ScoreMatrix(target = cage, windows = promoters)
+```
+
+# Trace
+
+```{r}
+sessionInfo()
+devtools::session_info()
+```
