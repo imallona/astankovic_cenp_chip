@@ -20,7 +20,7 @@ params:
 suppressPackageStartupMessages({
     library(knitr)
     library(genomation)
-    library('TxDb.Hsapiens.UCSC.hg19.knownGene')
+    library('TxDb.Mmusculus.UCSC.mm10.knownGene')
 }
 ```
 
@@ -30,15 +30,79 @@ knitr::opts_chunk$set(autodep = TRUE, cache = TRUE, dev = "png",
                       warning = FALSE, message = FALSE)
 ```
 
+```{r}
+DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
+```
 
 ```{r}
-txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
 
 all_proms <- promoters(genes(txdb), upstream = 1500, downstream = 500)
 
 genes_proms <- promoters(genes(txdb), upstream = 1500, downstream = 500)
 
 genes <- genes(txdb)
+```
+
+
+```{r}
+## windows <- 
+    ## readBigWig(file.path(DATA, 'bamCoverage', 'input_HC_2.seq_depth_norm.bw'))
+sm = ScoreMatrix(file.path(DATA, 'bamCoverage', 'input_HC_2.seq_depth_norm.bw'),
+                     windows = all_proms)
+
+
+
+heatMatrix(sm, xcoords = c(-1000, 1000))
+plotMeta(sm, xcoords = c(-1000, 1000))
+
+```
+
+
+```{r}
+
+bws <- as.list(file.path(DATA, 'bamCoverage',
+                         grep('filtered', list.files(file.path(DATA, 'bamCoverage'),
+                                           pattern = '.seq_depth_norm.bw'),
+                    invert = TRUE, value = TRUE)))
+names(bws) <- gsub('.seq_depth_norm.bw', '',
+                   grep('filtered', list.files(file.path(DATA, 'bamCoverage'),
+                                               pattern = '.seq_depth_norm.bw'),
+                        invert = TRUE, value = TRUE))
+
+bws <- lapply(bws, function(x) ScoreMatrix(target = x, windows = all_proms))
+
+sml <- ScoreMatrixList(targets = bws,
+                      windows = all_proms,
+                      bin.num = 50, strand.aware = TRUE)
+multiHeatMatrix(sml, xcoords = c(-500, 500), col = c("lightgray", "blue"))
+
+```
+
+
+```{r}
+annot <- data.frame(id = names(bws),
+                    col = 'black',
+                    batch = 'black')
+annot[grep('HC', annot$id), 'col'] <- 'blue'
+annot[grep('PTZ', annot$id), 'col'] <- 'orange'
+
+annot[grep('_1', annot$id), 'batch'] <- 'blue'
+annot[grep('_2', annot$id), 'batch'] <- 'red'
+annot[grep('_3', annot$id), 'batch'] <- 'green'
+annot[grep('input', annot$id), 'batch'] <- 'black'
+```
+
+
+```{r}
+par(mfrow = c(1,2))
+
+plotMeta(sml, xcoords = c(-1000, 1000), profile.names = names(bws), line.col = annot$col,
+         main = 'by treatment')
+## ?plotMeta
+plotMeta(sml, xcoords = c(-1000, 1000), profile.names = names(bws), line.col = annot$batch,
+         main = 'by batch')
+
 ```
 
 ```{r}
