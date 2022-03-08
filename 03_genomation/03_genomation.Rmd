@@ -20,12 +20,16 @@ params:
 suppressPackageStartupMessages({
     library(knitr)
     library(genomation)
+    library(Rsamtools)
     library('TxDb.Mmusculus.UCSC.mm10.knownGene')
-}
+    library(AnnotationHub)
+    library(rtracklayer)
+})
 ```
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 knitr::opts_chunk$set(autodep = TRUE, cache = TRUE, dev = "png",
+                      fig.width = 5, fig.height = 5,
                       dev.args = list(png = list(type = "cairo")),
                       warning = FALSE, message = FALSE)
 ```
@@ -44,6 +48,139 @@ genes_proms <- promoters(genes(txdb), upstream = 1500, downstream = 500)
 genes <- genes(txdb)
 ```
 
+
+# On BAM files
+
+```{r}
+
+## param_canonical <- 
+bams <- file.path(DATA, 'Bowtie2', list.files(file.path(DATA, 'Bowtie2'), pattern = '*bam$'))
+
+## ?ScoreMatrixList
+
+
+canonical <-  scanBamHeader(bams[[1]])[[1]][["targets"]]
+canonical <- canonical[grep('chr', names(canonical))]
+
+selected <- GRanges(names(canonical), IRanges(1, unname(canonical)))
+
+param <- ScanBamParam(which=selected)
+## seqnames(all_proms)
+## all_proms <- all_proms[seqnames(all_proms) %in% names(canonical)]
+
+all_proms <- keepStandardChromosomes(all_proms, pruning.mode="coarse")
+
+sml <- ScoreMatrixList(bams, all_proms, bin.num = 50, type = "bam", param = param)
+names(sml) <- gsub('.bam', '', names(sml))
+```
+
+```{r, fig.width = 12, fig.height = 8}
+## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
+
+multiHeatMatrix(sml, xcoords = c(-500, 500), col = c("lightgray", "blue"))
+
+```
+
+```{r, fig.width = 12, fig.height = 8}
+
+
+sml.scaled <- scaleScoreMatrixList(sml)
+
+multiHeatMatrix(sml.scaled, xcoords = c(-500, 500), col = c("lightgray", "blue"))
+```
+
+
+```{r, fig.width = 12, fig.height = 8}
+multiHeatMatrix(sml.scaled,
+                xcoords = c(-1000, 1000), clustfun = function(x) kmeans(x, centers = 3)$cluster)
+```
+
+```{r, fig.width = 12, fig.height = 8}
+multiHeatMatrix(sml.scaled,
+                xcoords = c(-3000, 3000), clustfun = function(x) kmeans(x, centers = 3)$cluster)
+```
+
+Is that CpG islands? mm38==mm10 CpGi
+
+```{r, fig.width = 12, fig.height = 8}
+## library(AnnotationHub)
+ah <- AnnotationHub()
+# retrieve CpG island data from annotationHub
+cpgi_query <- query(ah, c("Islands", "UCSC",  "Mus musculus"))
+
+cpgi <- ah[[names(cpgi_query)]]
+
+(chainfiles <- query(ah , c("mm9", "mm10", "chainfile")))
+
+cpgi_mm10 <- rtracklayer::liftOver(x = cpgi, chain = chainfiles[['AH14596']])
+```
+
+
+```{r, fig.width = 12, fig.height = 8}
+
+sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
+                          windows = all_proms, strand.aware = TRUE)
+
+
+sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
+                              all_proms, bin.num = 50)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+
+
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 2000), clustfun = function(x) kmeans(x, centers = 3)$cluster)
+```
+
+Is that GC content?
+
+```{r}
+## plotMeta(sml.scaled, xcoords=c(-2000, 2000))
+```
+
+
+```{r}
+query(ah, c("gc5BaseBw", "ucsc", "Mus musculus"))
+```
+
+Bare GC content
+
+```{r, eval = TRUE}
+if (!file.exists('mm10.gc5Base.wig.gz')) {
+    system('wget https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.gc5Base.wig.gz')
+}
+
+gc5 <- readGeneric('mm10.gc5Base.wig.gz', header = FALSE,
+                   meta.cols = list(mean=10))
+
+```
+
+
+```{r}
+sm_gc <- ScoreMatrixBin(target = gc5,
+                        windows = all_proms,
+                        bin.num = 1000,
+                        strand.aware = FALSE,
+                        weight.col = 'mean')
+
+sml_with_cpg <- ScoreMatrixList(c(sml_with_cpg, sm_gc),
+                              all_proms, bin.num = 50)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'G+C'
+```
+
+
+```{r , fig.width = 12, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-1000, 1000), clustfun = function(x) kmeans(x, centers = 3)$cluster)
+```
+
+
+```{r}
+knitr::knit_exit()
+```
+
+# On normalized bigWigs
 
 ```{r}
 ## windows <- 
@@ -105,12 +242,7 @@ plotMeta(sml, xcoords = c(-1000, 1000), profile.names = names(bws), line.col = a
 
 ```
 
-```{r}
 
-## mind there is no binning here
-## https://bioconductor.org/packages/release/bioc/vignettes/genomation/inst/doc/GenomationManual.html#6_Use_cases_for_genomation_package
-sm <- ScoreMatrix(target = cage, windows = promoters)
-```
 
 # Trace
 
