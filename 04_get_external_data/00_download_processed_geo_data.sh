@@ -121,3 +121,16 @@ wget 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE82015&format=file' --out
 tar xvf "$gse"_RAW.tar
 
 # atac end
+
+
+# ## remove all track headers
+
+# cd $WD
+# mkdir -p "$WD"/without_header
+
+# for fn in $(find $WD -name "*[wig|bed].gz")
+# do
+#     echo $fn
+#     curr=$(basename $fn)
+#     zcat $fn | grep -v "track" | gzip -c > "$WD"/without_header/"$curr"
+# done
