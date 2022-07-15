@@ -34,7 +34,7 @@ suppressPackageStartupMessages({
 ```
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
-knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
+knitr::opts_chunk$set(autodep = TRUE, cache = FALSE,
                       cache.lazy = FALSE,
                       dev = "png",
                       fig.width = 5, fig.height = 5,
@@ -88,8 +88,8 @@ genes_proms$ensembl <- mapIds(org.Mm.eg.db,
 ```{r}
 
 ## param_canonical <- 
-bams <- file.path(DATA, 'Bowtie2', list.files(file.path(DATA, 'Bowtie2'), pattern = '*bam$'))
-
+bams <- file.path(DATA, 'Bowtie2', list.files(file.path(DATA, 'Bowtie2'), pattern = '.*1.*bam$'))
+bams
 ## ?ScoreMatrixList
 
 canonical <-  scanBamHeader(bams[[1]])[[1]][["targets"]]
@@ -120,7 +120,7 @@ Without scaling
 ## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
 
 multiHeatMatrix(sml, xcoords = c(-2000, 1000),
-                clust.matrix = 1:6)
+                clust.matrix = 1:2)
 
 ```
 
@@ -137,14 +137,14 @@ multiHeatMatrix(sml.scaled, xcoords = c(-2000, 1000))
 set.seed(1)
 multiHeatMatrix(sml.scaled,
                 xcoords = c(-1000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                clust.matrix = 1:6)
+                clust.matrix = 1:2)
 ```
 
 ```{r, fig.width = 12, fig.height = 8}
 set.seed(1)
 multiHeatMatrix(sml.scaled,
                 xcoords = c(-3000, 3000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                clust.matrix = 1:6)
+                clust.matrix = 1:2)
 ```
 
 
@@ -187,7 +187,7 @@ names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
 set.seed(1)
 multiHeatMatrix(sml_with_cpg,
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                clust.matrix = 1:6)
+                clust.matrix = 1:2)
 ```
 
 Is that GC content?
@@ -246,7 +246,7 @@ names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'G+C'
 ```{r , fig.width = 12, fig.height = 8}
 multiHeatMatrix(sml_with_cpg,
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                clust.matrix = 1:6)
+                clust.matrix = 1:2)
 ```
 
 Winsorizing
@@ -255,7 +255,7 @@ Winsorizing
 set.seed(1)
 multiHeatMatrix(sml_with_cpg,
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                clust.matrix = 1:6,
+                clust.matrix = 1:2,
                 winsorize = c(1, 99))
 ```
 
@@ -628,12 +628,6 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
 
 
 
-```{r}
-knitr::knit_exit()
-
-
-```
-
 
 
 # Candidates, on bams
@@ -711,7 +705,7 @@ multiHeatMatrix(genes.sml_with_cpg, xcoords = c(-2000, 1000),
                              ai = ai_idx,
                              others = else_idx),
                 clustfun = function(x) kmeans(x, centers = 6)$cluster,
-                clust.matrix = 1:6)
+                clust.matrix = 1:2)
 
 ```
 
@@ -812,8 +806,9 @@ One GSE appended to the all_promoters heatmap at a time
 ```{r old, eval = FALSE}
 PUBLIC <- '/home/imallona/cenp_chip/public/'
 
-gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
+## gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
 
+gses <- c('GSE52386', 'GSE82015')
 public <- list()
 
 ## just getting max two beds, two wigs GSE for prototyping
@@ -854,11 +849,11 @@ for (gse in gses) {
 }
 ```
 
-```{r gse_loop, eval = TRUE, fig.width = 60, fig.height = 10, results = 'asis'}
+```{r gse_loop, eval = TRUE, fig.width = 80, fig.height = 10, results = 'asis'}
 PUBLIC <- '/home/imallona/cenp_chip/public/'
 
-gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
-
+## gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
+gses <- c('GSE52386', 'GSE82015')
 
 ## just getting max NMAXbeds, NMAX wigs GSE for prototyping
 NMAX <- 40
@@ -924,7 +919,7 @@ for (gse in gses) {
         multiHeatMatrix(tmp,
                         xcoords = c(-2000, 1000),
                         clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                        clust.matrix = 1:6)
+                        clust.matrix = 1:2)
     }, error = function(x) print(x))
     
     tmp2 <- scaleScoreMatrixList(c(sml, do.call(c, public)))
@@ -935,7 +930,7 @@ for (gse in gses) {
         multiHeatMatrix(tmp2,
                         xcoords = c(-2000, 1000),
                         clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                        clust.matrix = 1:6)
+                        clust.matrix = 1:2)
     }, error = function(x) print(x))
 
 

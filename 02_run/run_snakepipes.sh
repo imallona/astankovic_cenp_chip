@@ -24,7 +24,7 @@ conda create -n snakePipes -c mpi-ie -c conda-forge -c bioconda snakePipes==2.4.
 
 conda activate snakePipes
 
-export PATH="/path/to/miniconda3/bin:$PATH"
+# export PATH="/path/to/miniconda3/bin:$PATH"
 
 snakePipes info
 
