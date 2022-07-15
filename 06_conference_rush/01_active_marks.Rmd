@@ -126,24 +126,11 @@ multiHeatMatrix(sml, xcoords = c(-2000, 1000),
 
 Scaled
 
-```{r, fig.width = 12, fig.height = 8}
-sml.scaled <- scaleScoreMatrixList(sml)
-
-multiHeatMatrix(sml.scaled, xcoords = c(-2000, 1000))
-```
-
 
 ```{r, fig.width = 12, fig.height = 8}
 set.seed(1)
 multiHeatMatrix(sml.scaled,
-                xcoords = c(-1000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                clust.matrix = 1:2)
-```
-
-```{r, fig.width = 12, fig.height = 8}
-set.seed(1)
-multiHeatMatrix(sml.scaled,
-                xcoords = c(-3000, 3000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
                 clust.matrix = 1:2)
 ```
 
@@ -186,11 +173,10 @@ names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
 
 set.seed(1)
 multiHeatMatrix(sml_with_cpg,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
                 clust.matrix = 1:2)
 ```
 
-Is that GC content?
 
 ```{r}
 
@@ -205,59 +191,59 @@ legend(1200, 0.10,
 ```
 
 
-```{r}
-query(ah, c("gc5BaseBw", "ucsc", "Mus musculus"))
-```
+<!-- ```{r} -->
+<!-- query(ah, c("gc5BaseBw", "ucsc", "Mus musculus")) -->
+<!-- ``` -->
 
 
 
 
-Bare GC content
+<!-- Bare GC content -->
 
-```{r, eval = TRUE}
-if (!file.exists('mm10.gc5Base.wig.gz')) {
-    system('wget https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.gc5Base.wig.gz')
-}
+<!-- ```{r, eval = TRUE} -->
+<!-- if (!file.exists('mm10.gc5Base.wig.gz')) { -->
+<!--     system('wget https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.gc5Base.wig.gz') -->
+<!-- } -->
 
-gc5 <- readGeneric('mm10.gc5Base.wig.gz', header = FALSE,
-                   meta.cols = list(mean=10))
+<!-- gc5 <- readGeneric('mm10.gc5Base.wig.gz', header = FALSE, -->
+<!--                    meta.cols = list(mean=10)) -->
 
-if (DOWNSAMPLE) {
-    gc5 <-  keepSeqlevels(gc5, "chr19", pruning.mode="coarse") 
-}
-```
-
-
-```{r}
-sm_gc <- ScoreMatrix(target = gc5,
-                     windows = all_proms,
-                     strand.aware = FALSE,
-                     weight.col = 'mean')
-
-sm_gc.scaled <- scaleScoreMatrix(sm_gc)
-
-sml_with_cpg <- ScoreMatrixList(c(sml_with_cpg, sm_gc.scaled),
-                              all_proms, bin.num = 2)
-
-names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'G+C'
-```
+<!-- if (DOWNSAMPLE) { -->
+<!--     gc5 <-  keepSeqlevels(gc5, "chr19", pruning.mode="coarse")  -->
+<!-- } -->
+<!-- ``` -->
 
 
-```{r , fig.width = 12, fig.height = 8}
-multiHeatMatrix(sml_with_cpg,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                clust.matrix = 1:2)
-```
+<!-- ```{r} -->
+<!-- sm_gc <- ScoreMatrix(target = gc5, -->
+<!--                      windows = all_proms, -->
+<!--                      strand.aware = FALSE, -->
+<!--                      weight.col = 'mean') -->
 
-Winsorizing
+<!-- sm_gc.scaled <- scaleScoreMatrix(sm_gc) -->
 
-```{r winsor , fig.width = 12, fig.height = 8}
-set.seed(1)
-multiHeatMatrix(sml_with_cpg,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                clust.matrix = 1:2,
-                winsorize = c(1, 99))
-```
+<!-- sml_with_cpg <- ScoreMatrixList(c(sml_with_cpg, sm_gc.scaled), -->
+<!--                               all_proms, bin.num = 2) -->
+
+<!-- names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'G+C' -->
+<!-- ``` -->
+
+
+<!-- ```{r , fig.width = 12, fig.height = 8} -->
+<!-- multiHeatMatrix(sml_with_cpg, -->
+<!--                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
+<!-- ``` -->
+
+<!-- Winsorizing -->
+
+<!-- ```{r winsor , fig.width = 12, fig.height = 8} -->
+<!-- set.seed(1) -->
+<!-- multiHeatMatrix(sml_with_cpg, -->
+<!--                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster, -->
+<!--                 clust.matrix = 1:2, -->
+<!--                 winsorize = c(1, 99)) -->
+<!-- ``` -->
 
 <!-- # On bams, TSSs -->
 
@@ -343,7 +329,7 @@ multiHeatMatrix(zoom_sml.scaled,
                 xcoords = c(-down, up),
                 common.scale = TRUE,
                 clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:3)
+                clust.matrix = 1:2)
 
 ```
 
@@ -354,8 +340,8 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          dispersion = 'se',
          meta.rescale = FALSE,
          xcoords = c(-down, up),         
-         line.col = c(rep('blue', 3), rep('red', 3),
-                      rep('gray', 3), rep ('darkgrey', 3)))
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
 ```
 
 
@@ -367,8 +353,8 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          dispersion = 'se',
          meta.rescale = FALSE,
          xcoords = c(-down, up),         
-         line.col = c(rep('blue', 3), rep('red', 3),
-                      rep('gray', 3), rep ('darkgrey', 3)))
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
 
 
 for (i in seq(-down, up, by = 147)) {
@@ -407,7 +393,7 @@ multiHeatMatrix(zoom_sml.scaled,
                 common.scale = TRUE,
                 ## col = c('lightgray', 'blue'),
                 clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:3)
+                clust.matrix = 1:2)
 
 ```
 
@@ -419,8 +405,8 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          dispersion = 'se',
          meta.rescale = FALSE,
          xcoords = c(-down, up),
-         line.col = c(rep('blue', 3), rep('red', 3),
-                      rep('gray', 3), rep ('darkgrey', 3)))
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
 ```
 
 
@@ -432,8 +418,8 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          dispersion = 'se',
          meta.rescale = FALSE,
          xcoords = c(-down, up),         
-         line.col = c(rep('blue', 3), rep('red', 3),
-                      rep('gray', 3), rep ('darkgrey', 3)))
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
 
 
 for (i in seq(-down, up, by = 147)) {
@@ -443,7 +429,7 @@ for (i in seq(-down, up, by = 147)) {
 
 
 
-## 50 nt up and 150 down, 5 clusters
+## 150 nt up and 50 down, 5 clusters
 
 ```{r}
 
@@ -471,7 +457,7 @@ multiHeatMatrix(zoom_sml.scaled,
                 common.scale = TRUE,
                 ## col = c('lightgray', 'blue'),
                 clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:3)
+                clust.matrix = 1:2)
 
 ```
 
@@ -483,8 +469,8 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          dispersion = 'se',
          meta.rescale = FALSE,
          xcoords = c(-down, up),
-         line.col = c(rep('blue', 3), rep('red', 3),
-                      rep('gray', 3), rep ('darkgrey', 3)))
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
 ```
 
 
@@ -517,7 +503,7 @@ multiHeatMatrix(zoom_sml.scaled,
                 common.scale = TRUE,
                 ## col = c('lightgray', 'blue'),
                 clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:3)
+                clust.matrix = 1:2)
 
 ```
 
@@ -529,8 +515,8 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          dispersion = 'se',
          meta.rescale = FALSE,
          xcoords = c(-down, up),
-         line.col = c(rep('blue', 3), rep('red', 3),
-                      rep('gray', 3), rep ('darkgrey', 3)))
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
 ```
 
 
@@ -565,7 +551,7 @@ multiHeatMatrix(zoom_sml.scaled,
                 common.scale = TRUE,
                 ## col = c('lightgray', 'blue'),
                 clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:3)
+                clust.matrix = 1:2)
 ```
 
 ```{r}
@@ -574,8 +560,8 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          dispersion = 'se',
          meta.rescale = FALSE,
          xcoords = c(-down, up),
-         line.col = c(rep('blue', 3), rep('red', 3),
-                      rep('gray', 3), rep ('darkgrey', 3)))
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
 ```
 
 
@@ -608,7 +594,7 @@ multiHeatMatrix(zoom_sml.scaled,
                 common.scale = TRUE,
                 ## col = c('lightgray', 'blue'),
                 clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:3)
+                clust.matrix = 1:2)
 
 ```
 
@@ -803,57 +789,11 @@ One GSE appended to the all_promoters heatmap at a time
 ## knitr::knit_exit()
 ```
 
-```{r old, eval = FALSE}
+```{r gse_loop, eval = TRUE, fig.width = 70, fig.height = 10, results = 'asis'}
 PUBLIC <- '/home/imallona/cenp_chip/public/'
 
 ## gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
-
-gses <- c('GSE52386', 'GSE82015')
-public <- list()
-
-## just getting max two beds, two wigs GSE for prototyping
-
-for (gse in gses) {
-    ## public[[gse]] <- list()
-
-    i <- 1
-    fns <- list.files(file.path(PUBLIC, gse), pattern = '.*bed.*gz')
-    for (fn in fns) {
-        tryCatch({
-            if (!DOWNSAMPLE) {
-                public[[paste(gse, fn)]] <- ScoreMatrix(
-                    target = readGeneric(file.path(PUBLIC, gse, fn),
-                                         header = FALSE,
-                                         skip = 1 ,
-                                         keep.all.metadata = TRUE),
-                    windows = genes_proms, strand.aware = TRUE)
-            }
-            i <- i +1
-
-            }, error = function(x) print(x))
-        if (i > 2) next
-    }
-
-    i <- 1
-    wigs <- list.files(file.path(PUBLIC, gse), pattern = '.*wig.gz')
-    for (wig in wigs) {
-        tryCatch({
-            public[[paste(gse, wig)]] <- ScoreMatrix(
-                target = rtracklayer::import.wig(gzfile(file.path(PUBLIC, gse, wig))),
-                windows = genes_proms, strand.aware = TRUE)
-
-            i <- i +1
-        }, error = function(x) print(x))
-        if (i > 2) next          
-    }     
-}
-```
-
-```{r gse_loop, eval = TRUE, fig.width = 80, fig.height = 10, results = 'asis'}
-PUBLIC <- '/home/imallona/cenp_chip/public/'
-
-## gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
-gses <- c('GSE52386', 'GSE82015')
+gses <- c('GSE52386', 'GSE82015', 'GSE93011')
 
 ## just getting max NMAXbeds, NMAX wigs GSE for prototyping
 NMAX <- 40
@@ -864,6 +804,10 @@ for (gse in gses) {
 
     i <- 1
     fns <- list.files(file.path(PUBLIC, gse), pattern = '.*bed.*gz')
+    fns <- grep('input', fns, invert = TRUE, value = TRUE)
+    fns <- grep('shRNA', fns, invert = TRUE, value = TRUE)
+    fns <- grep('Liver', fns, invert = TRUE, value = TRUE)
+    
     for (fn in fns) {
         tryCatch({
             if (!DOWNSAMPLE) {
@@ -889,49 +833,55 @@ for (gse in gses) {
         if (i > NMAX) break
     }
 
-    j <- 1
-    wigs <- list.files(file.path(PUBLIC, gse), pattern = '.*wig.gz')
-    for (wig in wigs) {
-        tryCatch({
-            if (!DOWNSAMPLE) {
-                public[[paste(gse, wig)]] <- ScoreMatrix(
-                    target = rtracklayer::import.wig(gzfile(file.path(PUBLIC, gse, wig))),
-                    windows = all_proms, strand.aware = TRUE)
-            } else {
-                public[[paste(gse, wig)]] <- ScoreMatrix(
-                    target = keepSeqlevels(x = rtracklayer::import.wig(gzfile(file.path(PUBLIC, gse, wig))),
-                                           value = 'chr19',
-                                           pruning.mode = 'coarse'),
-                    windows = all_proms, strand.aware = TRUE)
+    ## j <- 1
+    ## wigs <- list.files(file.path(PUBLIC, gse), pattern = '.*wig.gz')
+    ## wigs <- grep('input', wigs, invert = TRUE, value = TRUE)
 
-            }
+    ## for (wig in wigs) {
+    ##     tryCatch({
+    ##         if (!DOWNSAMPLE) {
+    ##             public[[paste(gse, wig)]] <- ScoreMatrix(
+    ##                 target = rtracklayer::import.wig(gzfile(file.path(PUBLIC, gse, wig))),
+    ##                 windows = all_proms, strand.aware = TRUE)
+    ##         } else {
+    ##             public[[paste(gse, wig)]] <- ScoreMatrix(
+    ##                 target = keepSeqlevels(x = rtracklayer::import.wig(gzfile(file.path(PUBLIC, gse, wig))),
+    ##                                        value = 'chr19',
+    ##                                        pruning.mode = 'coarse'),
+    ##                 windows = all_proms, strand.aware = TRUE)
 
-            j <- j +1
-        }, error = function(x) print(x))
-        if (j > NMAX) break          
-    }
+    ##         }
+
+    ##         j <- j +1
+    ##     }, error = function(x) print(x))
+    ##     if (j > NMAX) break          
+    ## }
 
     tmp <- scaleScoreMatrixList(c(sml_with_cpg, do.call(c, public)))
     print(names(tmp))
+
+    names(tmp) <- gsub('.bed.gz', '', names(tmp))
+    names(tmp) <- gsub('.bedGraph.gz', '', names(tmp))
 
     tryCatch({
         set.seed(1)
         multiHeatMatrix(tmp,
                         xcoords = c(-2000, 1000),
                         clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                        clust.matrix = 1:2)
+                        clust.matrix = 1:2,
+                        col = c("lightgray", "blue"))
     }, error = function(x) print(x))
     
-    tmp2 <- scaleScoreMatrixList(c(sml, do.call(c, public)))
+    ## tmp2 <- scaleScoreMatrixList(c(sml, do.call(c, public)))
 
-    print(names(tmp2))
-    tryCatch({
-        set.seed(1)
-        multiHeatMatrix(tmp2,
-                        xcoords = c(-2000, 1000),
-                        clustfun = function(x) kmeans(x, centers = 5)$cluster,
-                        clust.matrix = 1:2)
-    }, error = function(x) print(x))
+    ## print(names(tmp2))
+    ## tryCatch({
+    ##     set.seed(1)
+    ##     multiHeatMatrix(tmp2,
+    ##                     xcoords = c(-2000, 1000),
+    ##                     clustfun = function(x) kmeans(x, centers = 5)$cluster,
+    ##                     clust.matrix = 1:2)
+    ## }, error = function(x) print(x))
 
 
     tryCatch({
@@ -945,21 +895,23 @@ for (gse in gses) {
                pch =1) 
     }, error = function(x) print(x))
 
-    tryCatch({
+    ## tryCatch({
         
-        plotMeta(tmp2, xcoords=c(-2000, 1000))
+    ##     plotMeta(tmp2, xcoords=c(-2000, 1000))
 
-        ## par(xpd=TRUE)
+    ##     ## par(xpd=TRUE)
 
-        legend('topright',
-               legend = names(tmp2), col = as.numeric(as.factor(names(tmp2))),
-               pch =1) 
-    }, error = function(x) print(x))
+    ##     legend('topright',
+    ##            legend = names(tmp2), col = as.numeric(as.factor(names(tmp2))),
+    ##            pch =1) 
+    ## }, error = function(x) print(x))
     
     cat('\n\n')
     
 }
 ```
+
+
 
 ```{r checkpoint}
 knitr::knit_exit()

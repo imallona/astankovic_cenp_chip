@@ -146,7 +146,7 @@ done
 ```
 
 
-```{r fig.width = 15, fig.height = 4}
+```{r fig.width = 15, fig.height = 4, results = 'asis'}
 DATA <- '/home/imallona/cenp_chip/mapping_with_dupes/Bowtie2'
 fns <- list.files(DATA, pattern = ".*bam.bedtools.cov")
 for (fn in fns) {
