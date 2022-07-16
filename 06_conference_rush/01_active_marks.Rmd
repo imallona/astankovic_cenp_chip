@@ -25,6 +25,7 @@ suppressPackageStartupMessages({
     library(AnnotationHub)
     library(rtracklayer)
     library(org.Mm.eg.db)
+    library(viridis)
 })
 ```
 
@@ -128,6 +129,7 @@ Scaled
 
 
 ```{r, fig.width = 12, fig.height = 8}
+sml.scaled <- scaleScoreMatrixList(sml)
 set.seed(1)
 multiHeatMatrix(sml.scaled,
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
@@ -795,43 +797,115 @@ PUBLIC <- '/home/imallona/cenp_chip/public/'
 ## gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
 gses <- c('GSE52386', 'GSE82015', 'GSE93011')
 
+poster <- list('GSE52386' = c('GSM1264366_Forebrain_P56_H3K27ac_rep1.bed.gz'),
+               'GSE82015' = c('GSM2180001_E4_rep4.bed.gz'),
+               'GSE93011' = c('GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',
+                              'GSM2442459_N-K4me3-1.bedGraph.gz',
+                              'GSM2442457_N-K27me3-1.bedGraph.gz'))
+                              
+                              
+
 ## just getting max NMAXbeds, NMAX wigs GSE for prototyping
 NMAX <- 40
+public <- list()
 for (gse in gses) {
     cat('## ', gse, ' \n\n')
     
-    public <- list()
+    ## public <- list()
 
     i <- 1
     fns <- list.files(file.path(PUBLIC, gse), pattern = '.*bed.*gz')
+    
     fns <- grep('input', fns, invert = TRUE, value = TRUE)
     fns <- grep('shRNA', fns, invert = TRUE, value = TRUE)
     fns <- grep('Liver', fns, invert = TRUE, value = TRUE)
     
-    for (fn in fns) {
+    for (fn in poster[[gse]]) {
         tryCatch({
-            if (!DOWNSAMPLE) {
-                public[[paste(gse, fn)]] <- ScoreMatrix(
-                    target = readGeneric(file.path(PUBLIC, gse, fn),
-                                         header = FALSE,
-                                         skip = 1 ,
-                                         keep.all.metadata = TRUE),
-                    windows = all_proms, strand.aware = TRUE)
-            } else {
-                public[[paste(gse, fn)]] <- ScoreMatrix(
-                    target = keepSeqlevels(x = readGeneric(file.path(PUBLIC, gse, fn),
-                                                           header = FALSE,
-                                                           skip = 1 ,
-                                                           keep.all.metadata = TRUE),
-                                           value = 'chr19',
-                                           pruning.mode = 'coarse'),
-                    windows = all_proms, strand.aware = TRUE)
-            }
-            i <- i +1
+            public[[paste(gse, fn)]] <- ScoreMatrix(
+                target = keepSeqlevels(x = readGeneric(file.path(PUBLIC, gse, fn),
+                                                       header = FALSE,
+                                                       skip = 1 ,
+                                                       keep.all.metadata = TRUE),
+                                       value = 'chr19',
+                                       pruning.mode = 'coarse'),
+                windows = all_proms, strand.aware = TRUE)
 
-            }, error = function(x) print(x))
-        if (i > NMAX) break
+
+        }, error = function(x) print(x))
     }
+
+    cat('\n\n')
+}
+
+## stop('')
+```
+
+
+```{r  fig.width = 15, fig.height = 10, results = 'asis'}
+
+tmp <- scaleScoreMatrixList(c(sml_with_cpg, do.call(c, public)))
+print(names(tmp))
+
+
+## names(tmp) <- gsub('.bed.gz', '', names(tmp))
+## names(tmp) <- gsub('.bedGraph.gz', '', names(tmp))
+
+names(tmp) <- c('CENP\nNon-activated', 'CENP\nActivated', 'input\nNon-activated', 'input\nActivated',
+                 'CpGi', 'H3K27ac', 'ATAC-seq', 'PolII', 'H3K4me3', 'H4K27me3')
+
+print(names(tmp))
+
+tryCatch({
+    set.seed(1)
+    ## ?multiHeatMatrix
+
+    pal = RColorBrewer::brewer.pal(9,"Blues")
+    
+    multiHeatMatrix(tmp,
+                    xcoords = c(-2000, 1000),
+                    clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                    clust.matrix = 1:2,
+                    col = pal)
+}, error = function(x) print(x))
+
+## knitr::knit_exit()
+```
+
+
+```{r, fig.width = 10, fig.height = 10}
+tryCatch({
+    set.seed(1)
+    ## ?multiHeatMatrix
+
+    pal = RColorBrewer::brewer.pal(9,"Blues")
+    
+    multiHeatMatrix(tmp[c(1,2,5,6,7)],
+                    xcoords = c(-2000, 1000),
+                    clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                    clust.matrix = 1:2,
+                    col = pal)
+}, error = function(x) print(x))
+
+## knitr::knit_exit()
+```
+ 
+```{r, fig.width = 8, fig.height = 10}
+tryCatch({
+    set.seed(1)
+    ## ?multiHeatMatrix
+
+    pal = RColorBrewer::brewer.pal(9,"Blues")
+    
+    multiHeatMatrix(tmp[c(1,5,6,7)],
+                    xcoords = c(-2000, 1000),
+                    clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                    clust.matrix = 1,
+                    col = pal)
+}, error = function(x) print(x))
+
+knitr::knit_exit()
+```
 
     ## j <- 1
     ## wigs <- list.files(file.path(PUBLIC, gse), pattern = '.*wig.gz')
