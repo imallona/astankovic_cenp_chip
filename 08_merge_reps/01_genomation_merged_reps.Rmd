@@ -1,0 +1,230 @@
+---
+title: "CENP ChiP-seq and other epigenomic (public) data, merged replicates, bedgraphs"
+author: "Izaskun Mallona at Mark D. Robinson lab, University of Zurich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+params:
+  seed: 6
+---
+
+```{r}
+.libPaths('/home/imallona/R/R4_bioc314/')
+```
+
+
+```{r, message = FALSE}
+suppressPackageStartupMessages({
+    library(knitr)
+    library(genomation)
+    ## library(Rsamtools)
+    library('TxDb.Mmusculus.UCSC.mm10.knownGene')
+    library(AnnotationHub)
+    library(rtracklayer)
+    library(org.Mm.eg.db)
+    library(viridis)
+})
+```
+
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(autodep = TRUE, cache = FALSE,
+                      cache.lazy = FALSE,
+                      dev = "png",
+                      fig.width = 5, fig.height = 5,
+                      dev.args = list(png = list(type = "cairo")),
+                      warning = FALSE, message = FALSE)
+```
+
+```{r}
+BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
+
+## if downsampled, only chr19
+DOWNSAMPLE <- FALSE
+```
+
+```{r}
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+all_proms <- promoters(txdb, upstream = 2000, downstream = 1000)
+
+genes_proms <- promoters(genes(txdb), upstream = 2000, downstream = 1000)
+
+tsss <- resize(transcripts(txdb), width = 1, fix = 'start')
+
+if (DOWNSAMPLE) {
+    all_proms <- keepSeqlevels(all_proms, "chr19", pruning.mode="coarse")
+    genes_proms <- keepSeqlevels(genes_proms, "chr19", pruning.mode="coarse")
+    tsss <-  keepSeqlevels(tsss, "chr19", pruning.mode="coarse")
+}
+
+## genes <- genes(txdb)
+
+
+```
+
+
+```{r}
+genes_proms$symbol <- mapIds(org.Mm.eg.db,
+                           keys = genes_proms$gene_id,
+                           column = "SYMBOL",
+                           keytype = "ENTREZID",
+                           multiVals = "first")
+genes_proms$ensembl <- mapIds(org.Mm.eg.db,
+                              keys = genes_proms$gene_id,
+                              column = "ENSEMBL",
+                              keytype = "ENTREZID",
+                              multiVals = "first")
+```
+
+# On coverage (bedgraphs) files, promoters
+
+```{r bams, eval = FALSE}
+
+## param_canonical <- 
+bams <- file.path(DATA, 'Bowtie2', list.files(file.path(DATA, 'Bowtie2'), pattern = '.*1.*bam$'))
+bams
+## ?ScoreMatrixList
+
+canonical <-  scanBamHeader(bams[[1]])[[1]][["targets"]]
+canonical <- canonical[grep('chr', names(canonical))]
+
+if (DOWNSAMPLE) {
+    chr19 <- canonical['chr19']
+    selected <- GRanges(names(canonical), IRanges(1, unname(chr19)))
+} else {
+    selected <- GRanges(names(canonical), IRanges(1, unname(canonical)))
+}
+
+
+param <- ScanBamParam(which=selected)
+## seqnames(all_proms)
+## all_proms <- all_proms[seqnames(all_proms) %in% names(canonical)]
+
+all_proms <- keepStandardChromosomes(all_proms, pruning.mode="coarse")
+
+sml <- ScoreMatrixList(bams, all_proms, bin.num = 50, type = "bam", param = param,
+                       strand.aware = TRUE)
+names(sml) <- gsub('.bam', '', names(sml))
+```
+
+```{r}
+(covs_fns <- file.path(BEDGRAPHS, list.files(BEDGRAPHS, pattern = '.*bedgraph.gz$')))
+
+covs <- lapply(covs_fns, function(x) readGeneric(x, header = TRUE, meta.col = list(cov = 4)))
+
+names(covs) <- gsub('_cov.bedgraph.gz', '', basename(covs_fns))
+names(covs)
+```
+
+The strand!!! I forgot!!! 
+
+```{r}
+sml <- ScoreMatrixList(covs, all_proms, bin.num = 100, type = "auto", 
+                       strand.aware = FALSE)
+```
+
+Without scaling
+
+```{r, fig.width = 12, fig.height = 8}
+## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
+
+multiHeatMatrix(sml, xcoords = c(-2000, 1000),
+                clust.matrix = 1:4)
+
+```
+
+Scaled
+
+
+```{r, fig.width = 12, fig.height = 8}
+sml.scaled <- scaleScoreMatrixList(sml)
+set.seed(1)
+multiHeatMatrix(sml.scaled,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 8)$cluster,
+                clust.matrix = 1:4)
+```
+
+
+Is that signal in inputs CpG islands? mm38==mm10 CpGi
+
+```{r, fig.width = 12, fig.height = 8}
+## library(AnnotationHub)
+ah <- AnnotationHub()
+# retrieve CpG island data from annotationHub
+cpgi_query <- query(ah, c("Islands", "UCSC",  "Mus musculus"))
+
+cpgi <- ah[[names(cpgi_query)]]
+
+## if (DOWNSAMPLE) {
+##     cpgi <- keepSeqlevels(cpgi, "chr19", pruning.mode="coarse") 
+## }
+
+(chainfiles <- query(ah , c("mm9", "mm10", "chainfile")))
+
+cpgi_mm10 <- rtracklayer::liftOver(x = cpgi, chain = chainfiles[['AH14596']])
+
+if (DOWNSAMPLE) {
+    cpgi_mm10 <- keepSeqlevels(cpgi_mm10, "chr19", pruning.mode="coarse") 
+}
+```
+
+
+```{r, fig.width = 12, fig.height = 8}
+
+sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
+                          windows = all_proms, strand.aware = FALSE)
+
+
+sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
+                                all_proms, bin.num = 100,
+                                strand.aware = TRUE)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+
+set.seed(1)
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 10)$cluster,
+                clust.matrix = c(1,4))
+```
+
+
+without scaling
+
+
+```{r}
+
+
+sml_test <- ScoreMatrixList(c(sml, sm_cpgi),
+                            all_proms, bin.num = 100,
+                            strand.aware = TRUE)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+
+set.seed(1)
+multiHeatMatrix(sml_test,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 10)$cluster,
+                clust.matrix = c(1,4))
+
+```
+
+
+Is this that weird because of the lack of strands?
+
+
+# Trace
+
+```{r}
+sessionInfo()
+devtools::session_info()
+```
