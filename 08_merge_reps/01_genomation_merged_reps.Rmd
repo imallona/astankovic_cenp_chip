@@ -15,24 +15,26 @@ params:
   seed: 6
 ---
 
-```{r}
-.libPaths('/home/imallona/R/R4_bioc314/')
-```
-
 
 ```{r, message = FALSE}
 suppressPackageStartupMessages({
     library(knitr)
     library(genomation)
-    ## library(Rsamtools)
+    library(Rsamtools)
     library('TxDb.Mmusculus.UCSC.mm10.knownGene')
     library(AnnotationHub)
     library(rtracklayer)
     library(org.Mm.eg.db)
     library(viridis)
+    library(RColorBrewer)
+    ## library(Cairo)
 })
 ```
 
+
+```{r}
+.libPaths('/home/imallona/R/R4_bioc314/')
+```
 
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
@@ -46,9 +48,10 @@ knitr::opts_chunk$set(autodep = TRUE, cache = FALSE,
 
 ```{r}
 BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
+DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
 
 ## if downsampled, only chr19
-DOWNSAMPLE <- FALSE
+DOWNSAMPLE <- TRUE
 ```
 
 ```{r}
@@ -68,7 +71,6 @@ if (DOWNSAMPLE) {
 
 ## genes <- genes(txdb)
 
-
 ```
 
 
@@ -85,13 +87,13 @@ genes_proms$ensembl <- mapIds(org.Mm.eg.db,
                               multiVals = "first")
 ```
 
-# On coverage (bedgraphs) files, promoters
+# On bams
 
-```{r bams, eval = FALSE}
+```{r bams, eval = TRUE}
 
-## param_canonical <- 
-bams <- file.path(DATA, 'Bowtie2', list.files(file.path(DATA, 'Bowtie2'), pattern = '.*1.*bam$'))
-bams
+## param_canonical <-
+(bams <- file.path(DATA, 'Bowtie2', list.files(file.path(DATA, 'Bowtie2'), pattern = '.*1.*bam$'))[1:2])
+
 ## ?ScoreMatrixList
 
 canonical <-  scanBamHeader(bams[[1]])[[1]][["targets"]]
@@ -116,28 +118,45 @@ sml <- ScoreMatrixList(bams, all_proms, bin.num = 50, type = "bam", param = para
 names(sml) <- gsub('.bam', '', names(sml))
 ```
 
-```{r}
-(covs_fns <- file.path(BEDGRAPHS, list.files(BEDGRAPHS, pattern = '.*bedgraph.gz$')))
+```{r, eval = FALSE}
+plot(1)
+```
+
+```{r bamtestnoscaling, fig.width = 6, fig.height = 8}
+set.seed(1)
+## plot(1)
+
+## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
+multiHeatMatrix(sml, xcoords = c(-2000, 1000),
+                clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                clust.matrix = 1:1)
+
+rm(sml)
+```
+
+## On coverage files
+
+```{r coverages_load}
+covs_fns <- file.path(BEDGRAPHS, list.files(BEDGRAPHS, pattern = '.*bedgraph.gz$'))
 
 covs <- lapply(covs_fns, function(x) readGeneric(x, header = TRUE, meta.col = list(cov = 4)))
 
-names(covs) <- gsub('_cov.bedgraph.gz', '', basename(covs_fns))
-names(covs)
+names(covs) <- gsub('.bedgraph.gz', '', basename(covs_fns))
+names(covs) <- gsub('_cov_', '\n', names(covs))
+
+sml <- ScoreMatrixList(covs, all_proms, bin.num = 50, type = "auto", 
+                       strand.aware = TRUE)
 ```
 
-The strand!!! I forgot!!! 
+Without scaling, clustering four columns, joint
 
-```{r}
-sml <- ScoreMatrixList(covs, all_proms, bin.num = 100, type = "auto", 
-                       strand.aware = FALSE)
-```
+```{r noscaling, fig.width = 12, fig.height = 12}
+set.seed(1)
+## plot(1)
 
-Without scaling
-
-```{r, fig.width = 12, fig.height = 8}
 ## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
-
 multiHeatMatrix(sml, xcoords = c(-2000, 1000),
+                clustfun = function(x) kmeans(x, centers = 8)$cluster,
                 clust.matrix = 1:4)
 
 ```
@@ -165,7 +184,7 @@ cpgi_query <- query(ah, c("Islands", "UCSC",  "Mus musculus"))
 cpgi <- ah[[names(cpgi_query)]]
 
 ## if (DOWNSAMPLE) {
-##     cpgi <- keepSeqlevels(cpgi, "chr19", pruning.mode="coarse") 
+##     cpgi <- keepSeqlevels(cpgi, "chr19", pruning.mode="coarse")
 ## }
 
 (chainfiles <- query(ah , c("mm9", "mm10", "chainfile")))
@@ -173,7 +192,7 @@ cpgi <- ah[[names(cpgi_query)]]
 cpgi_mm10 <- rtracklayer::liftOver(x = cpgi, chain = chainfiles[['AH14596']])
 
 if (DOWNSAMPLE) {
-    cpgi_mm10 <- keepSeqlevels(cpgi_mm10, "chr19", pruning.mode="coarse") 
+    cpgi_mm10 <- keepSeqlevels(cpgi_mm10, "chr19", pruning.mode="coarse")
 }
 ```
 
@@ -181,45 +200,265 @@ if (DOWNSAMPLE) {
 ```{r, fig.width = 12, fig.height = 8}
 
 sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
-                          windows = all_proms, strand.aware = FALSE)
+                          windows = all_proms, strand.aware = TRUE)
 
 
 sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
-                                all_proms, bin.num = 100,
+                                all_proms, bin.num = 50,
                                 strand.aware = TRUE)
 
 names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
 
 set.seed(1)
 multiHeatMatrix(sml_with_cpg,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 10)$cluster,
-                clust.matrix = c(1,4))
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 8)$cluster,
+                clust.matrix = 1:4)
 ```
-
-
-without scaling
 
 
 ```{r}
+## sml_with_cpg <- sml_with_cpg[c("chip_HC_1\nbga",             
+##                                "chip_HC_2_3\nbga",           
+##                                "chip_PTZ_1\nbga",            
+##                                "chip_PTZ_2_3\nbga",        
+##                                "CpGi")]
 
+sml_with_cpg <- sml_with_cpg[c(2,4,6,8,9)]
+names(sml_with_cpg) <- gsub('\nbga', '', names(sml_with_cpg))
+                           
+```
 
-sml_test <- ScoreMatrixList(c(sml, sm_cpgi),
-                            all_proms, bin.num = 100,
-                            strand.aware = TRUE)
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                clust.matrix = 1:4)
+```
 
-names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                winsorize = c(1,99),
+                clust.matrix = 1:4)
 
-names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+```
 
-set.seed(1)
-multiHeatMatrix(sml_test,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 10)$cluster,
-                clust.matrix = c(1,4))
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                winsorize = c(0,99),
+                col = brewer.pal(9,"Blues"),
+                clust.matrix = 1:4)
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                col = brewer.pal(9,"Blues"),
+                clust.matrix = 1:4)
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                col = brewer.pal(9,"Blues"),
+                clust.matrix = 1:4,
+                order = TRUE,
+                column.scale = TRUE)
+
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                
+                col = brewer.pal(9,"Blues"),
+                clust.matrix = 1:4)
 
 ```
 
 
-Is this that weird because of the lack of strands?
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(0,98),
+                col = viridis(9),
+                clust.matrix = 1:4)
+
+```
+
+
+What if binning 'wider' bins, so maybe the PTZ looks nicer?
+
+```{r}
+sml <- ScoreMatrixList(covs, all_proms, bin.num = 25, type = "auto", 
+                       strand.aware = TRUE)
+sml <- sml[c(2,4,6,8)]
+names(sml) <- gsub('\nbga', '', names(sml))
+
+sml.scaled <- scaleScoreMatrixList(sml)
+
+sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
+                                all_proms, bin.num = 25,
+                                strand.aware = TRUE)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(0,99),
+                col = viridis(9),
+                clust.matrix = 1:4)
+
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(0,99),
+                col = viridis(9),
+                order = TRUE,
+                clust.matrix = 1:4)
+
+```
+
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(5,95),
+                col = viridis(9),
+                order = TRUE,
+                clust.matrix = 1:4)
+
+```
+
+
+Even wider?
+
+
+```{r}
+sml <- ScoreMatrixList(covs, all_proms, bin.num = 15, type = "auto", 
+                       strand.aware = TRUE)
+sml <- sml[c(2,4,6,8)]
+names(sml) <- gsub('\nbga', '', names(sml))
+
+sml.scaled <- scaleScoreMatrixList(sml)
+
+sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
+                                all_proms, bin.num = 15,
+                                strand.aware = TRUE)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(0,99),
+                col = viridis(9),
+                clust.matrix = 1:4)
+
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(0,99),
+                col = viridis(9),
+                order = TRUE,
+                clust.matrix = 1:4)
+
+```
+
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(5,95),
+                col = viridis(9),
+                order = TRUE,
+                clust.matrix = 1:4)
+
+```
+
+Same, but by strand?
+
+
+
+```{r}
+sml <- ScoreMatrixList(covs, all_proms, bin.num = 15, type = "auto", 
+                       strand.aware = TRUE)
+sml <- sml[c(1,3,4,7)]
+names(sml) <- gsub('\nbga_by_strand', '', names(sml))
+
+sml.scaled <- scaleScoreMatrixList(sml)
+
+sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
+                                all_proms, bin.num = 15,
+                                strand.aware = TRUE)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(0,99),
+                col = viridis(9),
+                clust.matrix = 1:4)
+
+```
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(0,99),
+                col = viridis(9),
+                order = TRUE,
+                clust.matrix = 1:4)
+
+```
+
+
+```{r, fig.width = 6, fig.height = 8}
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(5,95),
+                col = viridis(9),
+                order = TRUE,
+                clust.matrix = 1:4)
+
+```
+
+
+```{r}
+## ?plotMeta
+```
+<!-- without scaling -->
+
+
+<!-- ```{r} -->
+
+
+<!-- sml_test <- ScoreMatrixList(c(sml, sm_cpgi), -->
+<!--                             all_proms, bin.num = 100, -->
+<!--                             strand.aware = TRUE) -->
+
+<!-- names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi' -->
+
+<!-- names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi' -->
+
+<!-- set.seed(1) -->
+<!-- multiHeatMatrix(sml_test, -->
+<!--                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 10)$cluster, -->
+<!--                 clust.matrix = c(1,4)) -->
+
+<!-- ``` -->
+
+
+<!-- Is this that weird because of the lack of strands? -->
 
 
 # Trace
