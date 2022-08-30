@@ -33,9 +33,6 @@ suppressPackageStartupMessages({
 })
 ```
 
-
-
-
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
                       cache.lazy = FALSE,
@@ -75,21 +72,19 @@ if (DOWNSAMPLE) {
 ## genes <- genes(txdb)
 ```
 
-
 ```{r}
 genes_proms$symbol <- mapIds(org.Mm.eg.db,
                            keys = genes_proms$gene_id,
                            column = "SYMBOL",
                            keytype = "ENTREZID",
                            multiVals = "first")
+
 genes_proms$ensembl <- mapIds(org.Mm.eg.db,
                               keys = genes_proms$gene_id,
                               column = "ENSEMBL",
                               keytype = "ENTREZID",
                               multiVals = "first")
 ```
-
-
 
 ```{r coverages_load}
 covs_fns <- file.path(BEDGRAPHS, list.files(BEDGRAPHS, pattern = '.*bga.bedgraph.gz$'))
@@ -118,10 +113,8 @@ covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')]
 ```
 
 ```{r}
-
 sml <- ScoreMatrixList(covs, all_proms, bin.num = 50, type = "auto",  strand.aware = TRUE)
 ```
-
 
 # Original data
 
@@ -131,9 +124,6 @@ sml <- ScoreMatrixList(covs, all_proms, bin.num = 50, type = "auto",  strand.awa
 
 ```{r noscaling, fig.width = 8, fig.height = 6}
 
-## plot(1)
-
-## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
 set.seed(1)
 multiHeatMatrix(sml, xcoords = c(-2000, 1000),
                 clustfun = function(x) kmeans(x, centers = 5)$cluster,
@@ -411,7 +401,7 @@ gse <- 'GSE125068'
 
 (fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*bw$')))
 
-?ScoreMatrixList
+## ?ScoreMatrixList
 
 ## the all_proms is already downsampled
 
@@ -426,24 +416,25 @@ bws <- list()
 
 for (fn in fns) {
     bws[[basename(fn)]] <- tryCatch({
-        ScoreMatrix(fn, windows = all_proms,
-                    type = "auto",  strand.aware = TRUE,
-                    bin.num = 50)
+        ScoreMatrixBin(fn, windows = all_proms,
+                    type = "auto",
+                    bin.num = 50,
+                    strand.aware = TRUE)
     }, error = function(x) {
         tmp <- readBigWig(fn, windows = all_proms_ncbi,
                           type = "auto",  strand.aware = TRUE)
         
         seqlevelsStyle(tmp) <- "UCSC"
-        bws[[basename(fn)]] <- ScoreMatrix(tmp, all_proms_ncbi,
-                                           type = "auto",  strand.aware = TRUE,
-                                           bin.num = 50)
+        bws[[basename(fn)]] <- ScoreMatrixBin(tmp, all_proms_ncbi,
+                                              bin.num = 50,
+                                              type = "auto",  strand.aware = TRUE)
 
         rm(tmp)
     })    
 }
 
 
-bws <- ScoreMatrixList(bws)
+bws <- ScoreMatrixList(bws, bin.num = 50)
 names(bws) <- gsub('.bw', '', names(bws))
 ```
 
@@ -463,7 +454,7 @@ get(gse)
 
 ```
 
-## GSE85873
+### GSE85873
 
 These are peaks, not signal. mm10, ncbi-style chrom names.
 
@@ -510,7 +501,7 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
 
 Shall we cluster by CENP binding + K4me1 instead? Because a subset is indeed binding enhancers...
 
-```{r}
+```{r, fig.width = 14, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
@@ -526,7 +517,103 @@ get(gse)
 
 ```
 
-# 
+### GSE21161
+
+Caution this is mm9, liftover. Bigwigs. Chroms UCSC-style.
+
+```{r}
+
+gse <- 'GSE21161_caution_mm9'
+
+fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*bw$'))
+
+## bws <- ScoreMatrixList(fns, all_proms,
+##                        type = "auto",  strand.aware = TRUE,
+##                        bin.num = 50)
+
+curr <- list()
+for (fn in fns) {
+
+    tmp <- rtracklayer::import(fn, as = 'GRanges')
+    tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']]))
+
+    if (DOWNSAMPLE){
+        seqlevelsStyle(tmp) <- 'UCSC'
+
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    }
+
+
+    curr[[fn]] <- ScoreMatrixBin(tmp,
+                              bin.num = 50,
+                              all_proms,
+                              type = "auto",  strand.aware = TRUE)
+
+    rm(tmp)        
+}
+
+names(curr)
+names(curr) <- c("CREB_SC_un_B1",
+                 "CREB_SC_KCl_B1",
+                 "CREB_SC_un_B2",
+                 "CREB_SC_KCl_B2", 
+                 "SRF_H300_un_B1",
+                 "SRF_H300_KCl_B1",
+                 "SRF_H300_un_B2",
+                 "SRF_H300_KCl_B2")
+
+names(curr)
+
+
+curr <- ScoreMatrixList(curr, bin.num = 50)
+
+```
+
+```{r, fig.width = 24, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, curr),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.lab = 0.3)
+
+```
+
+
+
+```{r, fig.width = 26, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, curr),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                clust.matrix = 1:4,
+                col = brewer.pal(9,"Blues"),
+                cex.lab = 0.3)
+
+```
+
+
+```{r}
+assign(gse, curr)
+get(gse)
+
+```
+
+# Correlation plots
+
+```{r}
+c(sml_with_cpg, GSE125068, GSE85873, GSE21161_caution_mm9)
+names(c(sml_with_cpg, GSE125068, GSE85873, GSE21161_caution_mm9))
+
+## joint <- ScoreMatrixList(list(sml_with_cpg, GSE125068, GSE85873, GSE21161), targets = all_proms,
+##                          bin.num = 50)
+
+## c(sml_with_cpg, GSE125068, GSE85873, GSE21161)
+## c(sml_with_cpg, GSE125068, GSE85873, curr)
+## dim(sml[[1]]@.Data)
+
+````
 
 # Trace
 
