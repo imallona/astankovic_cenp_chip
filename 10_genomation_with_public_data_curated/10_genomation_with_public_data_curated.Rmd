@@ -1,0 +1,536 @@
+---
+title: "CENP ChiP-seq and other epigenomic (public) data, sample swap corrected"
+author: "Izaskun Mallona, Mark D. Robinson lab, University of Zurich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+params:
+  seed: 6
+---
+
+```{r}
+.libPaths('/home/imallona/R/R4_bioc314/')
+```
+
+```{r, message = FALSE}
+suppressPackageStartupMessages({
+    library(knitr)
+    library(genomation)
+    library(Rsamtools)
+    library('TxDb.Mmusculus.UCSC.mm10.knownGene')
+    library(AnnotationHub)
+    library(rtracklayer)
+    library(org.Mm.eg.db)
+    library(viridis)
+    library(RColorBrewer)
+})
+```
+
+
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
+                      cache.lazy = FALSE,
+                      dev = "png",
+                      fig.width = 4, fig.height = 4,
+                      dev.args = list(png = list(type = "cairo")),
+                      warning = FALSE, message = FALSE)
+```
+
+This analysis is mm10.
+
+```{r}
+DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
+PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
+
+## if downsampled, only chr19
+DOWNSAMPLE <- TRUE
+
+BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
+```
+
+```{r}
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+all_proms <- promoters(txdb, upstream = 2000, downstream = 1000)
+
+genes_proms <- promoters(genes(txdb), upstream = 2000, downstream = 1000)
+
+tsss <- resize(transcripts(txdb), width = 1, fix = 'start')
+
+if (DOWNSAMPLE) {
+    all_proms <- keepSeqlevels(all_proms, "chr19", pruning.mode="coarse")
+    genes_proms <- keepSeqlevels(genes_proms, "chr19", pruning.mode="coarse")
+    tsss <-  keepSeqlevels(tsss, "chr19", pruning.mode="coarse")
+}
+
+## genes <- genes(txdb)
+```
+
+
+```{r}
+genes_proms$symbol <- mapIds(org.Mm.eg.db,
+                           keys = genes_proms$gene_id,
+                           column = "SYMBOL",
+                           keytype = "ENTREZID",
+                           multiVals = "first")
+genes_proms$ensembl <- mapIds(org.Mm.eg.db,
+                              keys = genes_proms$gene_id,
+                              column = "ENSEMBL",
+                              keytype = "ENTREZID",
+                              multiVals = "first")
+```
+
+
+
+```{r coverages_load}
+covs_fns <- file.path(BEDGRAPHS, list.files(BEDGRAPHS, pattern = '.*bga.bedgraph.gz$'))
+
+covs <- lapply(covs_fns, function(x) readGeneric(x, header = TRUE, meta.col = list(cov = 4)))
+
+names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(covs_fns))
+
+
+if (DOWNSAMPLE) {
+    for (item in names(covs)) {
+        covs[[item]] <- keepSeqlevels(covs[[item]], "chr19", pruning.mode="coarse")
+    }
+}
+```
+
+Rename sample swaps!!!
+
+```{r}
+
+names(covs)
+names(covs) <- c('cenp_HC_1', 'cenp_PTZ_23', 'cenp_PTZ_1', 'cenp_HC_23')
+names(covs)
+
+covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')]
+```
+
+```{r}
+
+sml <- ScoreMatrixList(covs, all_proms, bin.num = 50, type = "auto",  strand.aware = TRUE)
+```
+
+
+# Original data
+
+## Heatmaps CENP data, sample swap corrected {.tabset .tabset-pills}
+
+### No scaling, original
+
+```{r noscaling, fig.width = 8, fig.height = 6}
+
+## plot(1)
+
+## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
+set.seed(1)
+multiHeatMatrix(sml, xcoords = c(-2000, 1000),
+                clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                clust.matrix = 1:4)
+
+```
+
+### No scaling, blues
+
+```{r, fig.width = 8, fig.height = 6}
+multiHeatMatrix(sml, xcoords = c(-2000, 1000),
+                clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                clust.matrix = 1:4,
+                col = c('lightgray', 'blue'))
+```
+
+### Scaled, original
+
+```{r, fig.width = 8, fig.height = 6}
+sml.scaled <- scaleScoreMatrixList(sml)
+set.seed(1)
+multiHeatMatrix(sml.scaled,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                clust.matrix = 1:4)
+```
+
+### Scaled, blues
+
+```{r, fig.width = 8, fig.height = 6}
+multiHeatMatrix(sml.scaled, xcoords = c(-2000, 1000),
+                clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                clust.matrix = 1:4,
+                col = c('lightgray', 'blue'))
+```
+
+### With CpG islands, scaled
+
+
+```{r, fig.width = 8, fig.height = 6}
+## library(AnnotationHub)
+ah <- AnnotationHub()
+# retrieve CpG island data from annotationHub
+cpgi_query <- query(ah, c("Islands", "UCSC",  "Mus musculus"))
+
+cpgi <- ah[[names(cpgi_query)]]
+
+chainfiles <- query(ah , c("mm9", "mm10", "chainfile"))
+
+cpgi_mm10 <- rtracklayer::liftOver(x = cpgi, chain = chainfiles[['AH14596']])
+
+if (DOWNSAMPLE) {
+    cpgi_mm10 <- keepSeqlevels(cpgi_mm10, "chr19", pruning.mode="coarse")
+}
+```
+
+
+```{r, fig.width = 8, fig.height = 6}
+
+sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
+                          windows = all_proms, strand.aware = TRUE,
+                          bin.num = 50)
+
+
+sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
+                                all_proms, bin.num = 50,
+                                strand.aware = TRUE)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+```
+
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                clust.matrix = 1:4)
+```
+
+
+### CpGi, scaled, blues
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                col = brewer.pal(15,"Blues"),
+                order = TRUE,
+                clust.matrix = 1:4)
+```
+
+### CpGi, scaled, viridis
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4)
+
+```
+
+### CpGi, scaled, winsorized
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                winsorize = c(0,98),
+                order = TRUE,
+                col = brewer.pal(9,"Blues"),
+                clust.matrix = 1:4)
+```
+
+### CpGi, scaled, winsorized, viridis
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                winsorize = c(0,98),
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4)
+
+```
+
+## Metaplots {.tabset .tabset-pills}
+
+### Dispersions
+
+```{r, fig.width = 5, fig.height = 4}
+par(pty = 's')
+plotMeta(sml_with_cpg, profile.names = names(sml_with_cpg),
+         meta.rescale = FALSE,
+         lwd = 2,
+         smoothfun = NULL,
+                  centralTrend = 'mean',
+         dispersion = 'se')
+```
+
+### Rescaled, dispersions
+
+
+```{r, fig.width = 5, fig.height = 4}
+par(pty = 's')
+plotMeta(sml_with_cpg, profile.names = names(sml_with_cpg),
+         meta.rescale = TRUE,
+         lwd = 2,
+         smoothfun = NULL,
+         centralTrend = 'mean',
+         dispersion = 'se')
+```
+
+### Rescaled
+
+```{r, fig.width = 5, fig.height = 4}
+par(pty = 's')
+plotMeta(sml_with_cpg, profile.names = names(sml_with_cpg),
+         meta.rescale = TRUE,
+         lwd = 2,
+         smoothfun = NULL)
+```
+
+### Lowess, dispersions
+
+```{r, fig.width = 5, fig.height = 4}
+par(pty = 's')
+plotMeta(sml_with_cpg, profile.names = names(sml_with_cpg),
+         meta.rescale = FALSE,
+         lwd = 2,
+         smoothfun = stats::lowess,
+         centralTrend = 'mean',
+         dispersion = 'se')
+```
+
+### Rescaled, lowess, dispersions
+
+```{r, fig.width = 5, fig.height = 4}
+par(pty = 's')
+plotMeta(sml_with_cpg, profile.names = names(sml_with_cpg),
+         meta.rescale = TRUE,
+         lwd = 2,
+         smoothfun = stats::lowess,
+         centralTrend = 'mean',
+         dispersion = 'se')
+```
+
+## Add data
+
+### GSE125068
+
+This is mm10, but with unconsistent chr names
+
+```
+[imallona@imlsportmacquarie GSE125068]$ ~/soft/kent/userApps.v390/bin/bigWigInfo  -chroms /home/imallona/cenp_chip/public/GSE125068/ChIP_CBP_KA1h.bw
+version: 4
+isCompressed: yes
+isSwapped: 0
+primaryDataSize: 336,628,214
+primaryIndexSize: 1,979,880
+zoomLevels: 10
+chromCount: 21
+	1 0 195471971
+	10 1 130694993
+	11 2 122082543
+	12 3 120129022
+	13 4 120421639
+	14 5 124902244
+	15 6 104043685
+	16 7 98207768
+	17 8 94987271
+	18 9 90702639
+	19 10 61431566
+	2 11 182113224
+	3 12 160039680
+	4 13 156508116
+	5 14 151834684
+	6 15 149736546
+	7 16 145441459
+	8 17 129401213
+	9 18 124595110
+	X 19 171031299
+	Y 20 91744698
+basesCovered: 955,789,739
+mean: 0.468688
+min: 0.122626
+max: 165.23399
+
+
+[imallona@imlsportmacquarie GSE125068]$ ~/soft/kent/userApps.v390/bin/bigWigInfo  -chroms ATAC_KA1h.bw 
+version: 4
+isCompressed: yes
+isSwapped: 0
+primaryDataSize: 449,681,394
+primaryIndexSize: 1,189,632
+zoomLevels: 8
+chromCount: 22
+	chr1 0 195471971
+	chr10 1 130694993
+	chr11 2 122082543
+	chr12 3 120129022
+	chr13 4 120421639
+	chr14 5 124902244
+	chr15 6 104043685
+	chr16 7 98207768
+	chr17 8 94987271
+	chr18 9 90702639
+	chr19 10 61431566
+	chr2 11 182113224
+	chr3 12 160039680
+	chr4 13 156508116
+	chr5 14 151834684
+	chr6 15 149736546
+	chr7 16 145441459
+	chr8 17 129401213
+	chr9 18 124595110
+	chrM 19 16299
+	chrX 20 171031299
+	chrY 21 91744698
+basesCovered: 2,725,537,669
+mean: 1.263262
+min: 0.000000
+max: 782.190002
+std: 4.266521
+````
+
+```{r}
+gse <- 'GSE125068'
+
+(fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*bw$')))
+
+?ScoreMatrixList
+
+## the all_proms is already downsampled
+
+all_proms_ncbi <- all_proms
+seqlevelsStyle(all_proms_ncbi) <- "NCBI"
+
+
+## bws <- lapply(fns, function(x) ScoreMatrix(x, windows = all_proms,
+##                                            type = "auto",  strand.aware = TRUE))
+
+bws <- list()
+
+for (fn in fns) {
+    bws[[basename(fn)]] <- tryCatch({
+        ScoreMatrix(fn, windows = all_proms,
+                    type = "auto",  strand.aware = TRUE,
+                    bin.num = 50)
+    }, error = function(x) {
+        tmp <- readBigWig(fn, windows = all_proms_ncbi,
+                          type = "auto",  strand.aware = TRUE)
+        
+        seqlevelsStyle(tmp) <- "UCSC"
+        bws[[basename(fn)]] <- ScoreMatrix(tmp, all_proms_ncbi,
+                                           type = "auto",  strand.aware = TRUE,
+                                           bin.num = 50)
+
+        rm(tmp)
+    })    
+}
+
+
+bws <- ScoreMatrixList(bws)
+names(bws) <- gsub('.bw', '', names(bws))
+```
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, bws),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4)
+
+```
+
+```{r}
+assign(gse, bws)
+get(gse)
+
+```
+
+## GSE85873
+
+These are peaks, not signal. mm10, ncbi-style chrom names.
+
+```{r}
+gse <- 'GSE85873'
+
+fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*gz$'))
+
+peaks <- lapply(fns, function(x) readGeneric(x, header = TRUE, meta.col = list(score = 4)))
+names(peaks) <- basename(fns)
+names(peaks) <- gsub('.txt.gz', '', names(peaks))
+
+if (DOWNSAMPLE){
+    for (item in names(peaks)) {
+        seqlevelsStyle(peaks[[item]]) <- 'UCSC'
+
+        peaks[[item]] <- keepSeqlevels(peaks[[item]], "chr19", pruning.mode="coarse")
+    }
+}
+
+names(peaks)
+names(peaks) <- c('K4me3_wt_HC_1', 'K4me3_wt_NE_1', 'K4me3_wt_HC_2', 'K4me3_wt_NE_2',
+                  'K4me1_WT')
+names(peaks)
+
+peaks <- ScoreMatrixList(peaks,
+                         all_proms,
+                         bin.num = 50,
+                         type = "auto",  strand.aware = TRUE)
+
+```
+
+
+```{r, fig.width = 14, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.lab = 0.5)
+
+```
+
+Shall we cluster by CENP binding + K4me1 instead? Because a subset is indeed binding enhancers...
+
+```{r}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = c(1:4, 14),
+                cex.lab = 0.5)
+```
+
+```{r}
+assign(gse, peaks)
+get(gse)
+
+```
+
+# 
+
+# Trace
+
+```{r}
+sessionInfo()
+devtools::session_info()
+```
