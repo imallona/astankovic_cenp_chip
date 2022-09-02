@@ -151,12 +151,34 @@ mv "$gse"
 
 
 
+# study on H1  https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5800798/
+## no data on geo nor array express
+
+
 # another study on KCl
 
 gse=GSE69806 # this is also mm9
+# https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE69806
 
-mkdir -p "$WD"/"$gse"
+
+mkdir -p "$WD"/"$gse"_caution_mm9
 cd $_
 
-## this is crazy, contains mostly diff sites (!) skip for now
+wget 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE69nnn/GSE69806/suppl/GSE69806_diff.H3.1_2.w200.fc3.txt.gz'
 
+wget 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE69nnn/GSE69806/suppl/GSE69806_diff.H3.3.2hr.w200.fc3.txt.gz'
+
+# too small
+# wget 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE69nnn/GSE69806/suppl/GSE69806_diff.H3.3.Ab.w200.f.txt.gz'
+
+wget 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE69nnn/GSE69806/suppl/GSE69806_diff.H3.3.30min.w200.fc3.txt.gz'
+
+wget 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE69nnn/GSE69806/suppl/GSE69806_diff.H3.3.Astro.w200.fc3.txt.gz'
+
+wget 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE69nnn/GSE69806/suppl/GSE69806_diff.catch-it.dup6.seprep.w200.normByLib.fc3.txt.gz'
+
+# rather, download the counts around TSS
+
+wget https://ftp.ncbi.nlm.nih.gov/geo/series/GSE69nnn/GSE69806/suppl/GSE69806_Mus_musculus.NCBIM37.62.tss1k.gid.Cortex_H3_3_IP.cnt.gz
+
+wget https://ftp.ncbi.nlm.nih.gov/geo/series/GSE69nnn/GSE69806/suppl/GSE69806_Mus_musculus.NCBIM37.62.tss1k.gid.HA.cnt.gz

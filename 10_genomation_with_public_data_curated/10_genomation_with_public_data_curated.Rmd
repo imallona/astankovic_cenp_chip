@@ -317,9 +317,9 @@ plotMeta(sml_with_cpg, profile.names = names(sml_with_cpg),
          dispersion = 'se')
 ```
 
-## Add data
+# Add data
 
-### GSE125068
+## GSE125068
 
 This is mm10, but with unconsistent chr names
 
@@ -454,7 +454,7 @@ get(gse)
 
 ```
 
-### GSE85873
+## GSE85873
 
 These are peaks, not signal. mm10, ncbi-style chrom names.
 
@@ -495,7 +495,7 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
-                cex.lab = 0.5)
+                cex.main = 0.8)
 
 ```
 
@@ -508,7 +508,7 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = c(1:4, 14),
-                cex.lab = 0.5)
+                cex.main = 0.8)
 ```
 
 ```{r}
@@ -517,15 +517,16 @@ get(gse)
 
 ```
 
-### GSE21161
+## GSE21161
 
 Caution this is mm9, liftover. Bigwigs. Chroms UCSC-style.
 
 ```{r}
 
-gse <- 'GSE21161_caution_mm9'
+gse <- 'GSE21161'
 
-fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*bw$'))
+fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'), 
+                 list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*bw$'))
 
 ## bws <- ScoreMatrixList(fns, all_proms,
 ##                        type = "auto",  strand.aware = TRUE,
@@ -576,20 +577,20 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, curr),
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
-                cex.lab = 0.3)
+                cex.main = 0.8)
 
 ```
 
 
 
-```{r, fig.width = 26, fig.height = 6}
+```{r, fig.width = 28, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, curr),
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
                 order = TRUE,
                 clust.matrix = 1:4,
                 col = brewer.pal(9,"Blues"),
-                cex.lab = 0.3)
+                cex.main = 0.8)
 
 ```
 
@@ -600,11 +601,196 @@ get(gse)
 
 ```
 
-# Correlation plots
+
+
+## GSE69806 diff peaks
+
+Caution this is mm9, liftover. some very annotated diff binding result. Chroms UCSC-style.
+
+```{r, cache = FALSE}
+
+gse <- 'GSE69806'
+
+fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'),
+                 list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*txt.gz$'))
+
+## bws <- ScoreMatrixList(fns, all_proms,
+##                        type = "auto",  strand.aware = TRUE,
+##                        bin.num = 50)
+
+curr <- list()
+for (fn in fns) {
+
+    tmp <- readGeneric(fn, header = TRUE)
+
+    tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']]))
+
+    if (DOWNSAMPLE){
+        seqlevelsStyle(tmp) <- 'UCSC'
+
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    }
+
+
+    curr[[fn]] <- ScoreMatrixBin(tmp,
+                              bin.num = 50,
+                              all_proms,
+                              type = "auto",  strand.aware = TRUE)
+
+    rm(tmp)        
+}
+
+names(curr)
+names(curr) <- gsub('.txt.gz', '', gsub('GSE69806_', '', basename(fns)))
+
+names(curr)
+
+
+curr <- ScoreMatrixList(curr, bin.num = 50)
+
+```
+
+```{r, fig.width = 10, fig.height = 6, cache = FALSE}
+set.seed(1)
+
+curr[[3]] <- NULL ## has no intervals in the range
+multiHeatMatrix(c(sml_with_cpg, curr),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.6)
+
+```
+
+```{r, fig.width = 30, fig.height = 6, cache = FALSE}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.6)
+
+```
+
+
+
+```{r, fig.width = 30, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                clust.matrix = 1:4,
+                col = brewer.pal(9,"Blues"),
+                cex.main = 0.8)
+
+```
+
 
 ```{r}
-c(sml_with_cpg, GSE125068, GSE85873, GSE21161_caution_mm9)
-names(c(sml_with_cpg, GSE125068, GSE85873, GSE21161_caution_mm9))
+assign(gse, curr)
+get(gse)
+
+```
+
+## GSE69806 TSS counts
+
+Caution this is mm9, liftover. TSS counts. Chroms UCSC-style.
+
+```{r, cache = FALSE}
+
+gse <- 'GSE69806'
+
+fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'),
+                 list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*cnt.gz$'))
+
+## bws <- ScoreMatrixList(fns, all_proms,
+##                        type = "auto",  strand.aware = TRUE,
+##                        bin.num = 50)
+
+curr <- list()
+for (fn in fns) {
+
+    tmp <- readGeneric(fn, header = TRUE)
+
+    tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']]))
+
+    if (DOWNSAMPLE){
+        seqlevelsStyle(tmp) <- 'UCSC'
+
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    }
+
+
+    curr[[fn]] <- ScoreMatrixBin(tmp,
+                              bin.num = 50,
+                              all_proms,
+                              type = "auto",  strand.aware = TRUE)
+
+    rm(tmp)        
+}
+
+names(curr)
+names(curr) <- gsub('.cnt.gz', '', gsub('GSE69806_Mus_musculus.NCBIM37.62.', '', basename(fns)))
+
+names(curr)
+
+
+curr <- ScoreMatrixList(curr, bin.num = 50)
+
+```
+
+```{r, fig.width = 10, fig.height = 6, cache = FALSE}
+set.seed(1)
+
+curr[[3]] <- NULL ## has no intervals in the range
+multiHeatMatrix(c(sml_with_cpg, curr),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.6)
+
+```
+
+```{r, fig.width = 30, fig.height = 6, cache = FALSE}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.6)
+
+```
+
+
+
+```{r, fig.width = 30, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                clust.matrix = 1:4,
+                col = brewer.pal(9,"Blues"),
+                cex.main = 0.8)
+
+```
+
+
+```{r}
+assign(gse, curr)
+get(gse)
+
+```
+
+
+# Correlation plots
+
+```{r, eval = FALSE}
+c(sml_with_cpg, GSE125068, GSE85873, GSE21161)
+names(c(sml_with_cpg, GSE125068, GSE85873, GSE21161))
 
 ## joint <- ScoreMatrixList(list(sml_with_cpg, GSE125068, GSE85873, GSE21161), targets = all_proms,
 ##                          bin.num = 50)
@@ -613,7 +799,7 @@ names(c(sml_with_cpg, GSE125068, GSE85873, GSE21161_caution_mm9))
 ## c(sml_with_cpg, GSE125068, GSE85873, curr)
 ## dim(sml[[1]]@.Data)
 
-````
+```
 
 # Trace
 

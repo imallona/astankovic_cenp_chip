@@ -70,7 +70,7 @@ ln -s ~/src/astankovic_cenp_chip/07_mapping_against_centromere_consensus/centrom
 bowtie2-build  centromeres_oligomerized.fasta centromeres_oligomerized
 
 # mapping against the centromeres
-for run in chip_HC_1 chip_PTZ_1
+for run in  chip_HC_1 chip_PTZ_1
 do
     R1="$TRIMMED"/"$run"_R1.fastq.gz
     R2="$TRIMMED"/"$run"_R2.fastq.gz
@@ -78,7 +78,7 @@ do
     mkdir -p $WD/"$run"_oligomerized
     cd $WD/"$run"_oligomerized
 
-    nice -n 19 bowtie2 \
+    (nice -n 19 bowtie2 \
          -k 2 \
          -q \
          -x "$WD"/centromeres_oligomerized \
@@ -87,7 +87,7 @@ do
          -p $NUM_THREADS \
          --fast \
          --un-gz "$run"_unaligned_un.fq.gz \
-         --un-conc-gz "$run"_unaligned_conc.fq.gz | samtools view -bS - > "$run".bam  2> "$run"_bowtie.log
+         --un-conc-gz "$run"_unaligned_conc.fq.gz | samtools view -bS - > "$run".bam)  2> "$run"_bowtie.log
 
 done
 
@@ -132,7 +132,8 @@ NUM_THREADS=20
 cd $WD
 
 # mapping against the oligomerized centromeres, rest of the samples
-for run in chip_HC_2 chip_PTZ_2 \
+for run in chip_HC_1 chip_PTZ_1 \
+                     chip_HC_2 chip_PTZ_2 \
                      chip_HC_3 chip_PTZ_3 \
                      input_HC_1 input_PTZ_1 \
                      input_HC_2 input_PTZ_2 \
@@ -144,7 +145,7 @@ do
     mkdir -p $WD/"$run"_oligomerized
     cd $WD/"$run"_oligomerized
 
-    nice -n 19 bowtie2 \
+    (nice -n 19 bowtie2 \
          -k 2 \
          -q \
          -x "$WD"/centromeres_oligomerized \
@@ -153,6 +154,6 @@ do
          -p $NUM_THREADS \
          --fast \
          --un-gz "$run"_unaligned_un.fq.gz \
-         --un-conc-gz "$run"_unaligned_conc.fq.gz | samtools view -bS - > "$run".bam  | tee "$run"_bowtie.log
+         --un-conc-gz "$run"_unaligned_conc.fq.gz | samtools view -bS - > "$run".bam)  2>  "$run"_bowtie.log
 
 done
