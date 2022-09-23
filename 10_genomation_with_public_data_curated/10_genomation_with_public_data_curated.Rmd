@@ -323,78 +323,78 @@ plotMeta(sml_with_cpg, profile.names = names(sml_with_cpg),
 
 This is mm10, but with unconsistent chr names
 
+```{bash, eval = FALSE}
+# [imallona@imlsportmacquarie GSE125068]$ ~/soft/kent/userApps.v390/bin/bigWigInfo  -chroms /home/imallona/cenp_chip/public/GSE125068/ChIP_CBP_KA1h.bw
+# version: 4
+# isCompressed: yes
+# isSwapped: 0
+# primaryDataSize: 336,628,214
+# primaryIndexSize: 1,979,880
+# zoomLevels: 10
+# chromCount: 21
+# 	1 0 195471971
+# 	10 1 130694993
+# 	11 2 122082543
+# 	12 3 120129022
+# 	13 4 120421639
+# 	14 5 124902244
+# 	15 6 104043685
+# 	16 7 98207768
+# 	17 8 94987271
+# 	18 9 90702639
+# 	19 10 61431566
+# 	2 11 182113224
+# 	3 12 160039680
+# 	4 13 156508116
+# 	5 14 151834684
+# 	6 15 149736546
+# 	7 16 145441459
+# 	8 17 129401213
+# 	9 18 124595110
+# 	X 19 171031299
+# 	Y 20 91744698
+# basesCovered: 955,789,739
+# mean: 0.468688
+# min: 0.122626
+# max: 165.23399
+
+
+# [imallona@imlsportmacquarie GSE125068]$ ~/soft/kent/userApps.v390/bin/bigWigInfo  -chroms ATAC_KA1h.bw 
+# version: 4
+# isCompressed: yes
+# isSwapped: 0
+# primaryDataSize: 449,681,394
+# primaryIndexSize: 1,189,632
+# zoomLevels: 8
+# chromCount: 22
+# 	chr1 0 195471971
+# 	chr10 1 130694993
+# 	chr11 2 122082543
+# 	chr12 3 120129022
+# 	chr13 4 120421639
+# 	chr14 5 124902244
+# 	chr15 6 104043685
+# 	chr16 7 98207768
+# 	chr17 8 94987271
+# 	chr18 9 90702639
+# 	chr19 10 61431566
+# 	chr2 11 182113224
+# 	chr3 12 160039680
+# 	chr4 13 156508116
+# 	chr5 14 151834684
+# 	chr6 15 149736546
+# 	chr7 16 145441459
+# 	chr8 17 129401213
+# 	chr9 18 124595110
+# 	chrM 19 16299
+# 	chrX 20 171031299
+# 	chrY 21 91744698
+# basesCovered: 2,725,537,669
+# mean: 1.263262
+# min: 0.000000
+# max: 782.190002
+# std: 4.266521
 ```
-[imallona@imlsportmacquarie GSE125068]$ ~/soft/kent/userApps.v390/bin/bigWigInfo  -chroms /home/imallona/cenp_chip/public/GSE125068/ChIP_CBP_KA1h.bw
-version: 4
-isCompressed: yes
-isSwapped: 0
-primaryDataSize: 336,628,214
-primaryIndexSize: 1,979,880
-zoomLevels: 10
-chromCount: 21
-	1 0 195471971
-	10 1 130694993
-	11 2 122082543
-	12 3 120129022
-	13 4 120421639
-	14 5 124902244
-	15 6 104043685
-	16 7 98207768
-	17 8 94987271
-	18 9 90702639
-	19 10 61431566
-	2 11 182113224
-	3 12 160039680
-	4 13 156508116
-	5 14 151834684
-	6 15 149736546
-	7 16 145441459
-	8 17 129401213
-	9 18 124595110
-	X 19 171031299
-	Y 20 91744698
-basesCovered: 955,789,739
-mean: 0.468688
-min: 0.122626
-max: 165.23399
-
-
-[imallona@imlsportmacquarie GSE125068]$ ~/soft/kent/userApps.v390/bin/bigWigInfo  -chroms ATAC_KA1h.bw 
-version: 4
-isCompressed: yes
-isSwapped: 0
-primaryDataSize: 449,681,394
-primaryIndexSize: 1,189,632
-zoomLevels: 8
-chromCount: 22
-	chr1 0 195471971
-	chr10 1 130694993
-	chr11 2 122082543
-	chr12 3 120129022
-	chr13 4 120421639
-	chr14 5 124902244
-	chr15 6 104043685
-	chr16 7 98207768
-	chr17 8 94987271
-	chr18 9 90702639
-	chr19 10 61431566
-	chr2 11 182113224
-	chr3 12 160039680
-	chr4 13 156508116
-	chr5 14 151834684
-	chr6 15 149736546
-	chr7 16 145441459
-	chr8 17 129401213
-	chr9 18 124595110
-	chrM 19 16299
-	chrX 20 171031299
-	chrY 21 91744698
-basesCovered: 2,725,537,669
-mean: 1.263262
-min: 0.000000
-max: 782.190002
-std: 4.266521
-````
 
 ```{r}
 gse <- 'GSE125068'
@@ -438,19 +438,49 @@ bws <- ScoreMatrixList(bws, bin.num = 50)
 names(bws) <- gsub('.bw', '', names(bws))
 ```
 
-```{r, fig.width = 8, fig.height = 6}
+```{r, fig.width = 14, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, bws),
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
                 order = TRUE,
                 col = viridis(9),
-                clust.matrix = 1:4)
+                clust.matrix = 1:4,
+                cex.main = 0.7)
 
 ```
 
 ```{r}
 assign(gse, bws)
 get(gse)
+
+```
+
+```{r, fig.width = 14, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(bws)),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.7)
+
+```
+
+```{r}
+assign(gse, bws)
+get(gse)
+
+```
+
+
+```{r}
+knitr::knit_exit()
+```
+
+
+## test new mm9 data h3.3
+
+```{r}
 
 ```
 

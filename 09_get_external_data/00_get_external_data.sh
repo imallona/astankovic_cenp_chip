@@ -332,124 +332,156 @@ EOF
 
 grep -f ana_selected.rmdup sra_metadata_h33.txt | cut -d"," -f1 > ana_selected.sras
 
+# to be run on tesuto, and rsync portmac there
 while IFS= read -r srr
 do
     echo "$srr download"
-    
+    ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/sam-dump "$srr" | samtools view -S -b > "$srr".bam
+    rsync -avt "$srr".bam imlsportmacquarie.uzh.ch:/home/imallona/cenp_chip/public/GSE69806_caution_mm9_rmdup/
+    rm "$srr".bam
 done < ana_selected.sras
 
-## test raw download
-wget https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR2061073/SRR2061073
-mv SRR2061073 SRR2061073.sra
+# ## test raw download
+# wget https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR2061073/SRR2061073
+# mv SRR2061073 SRR2061073.sra
 
-~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/sam-dump SRR2061073.sra
+# ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/sam-dump SRR2061073.sra
 
-~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/prefetch SRR2061073
+# ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/prefetch SRR2061073
 
-# @PG     ID:Bowtie       VN:1.0.1        CL:"bowtie -p 4 -q -m 1 -v 3 --sam --best --strata /sc/orga/scratch/shenl03/genome/bowtie/mouse/mm9 -"
-# 1       0       chr1    3000038 255     sam-dump quit with error code 3
+# # @PG     ID:Bowtie       VN:1.0.1        CL:"bowtie -p 4 -q -m 1 -v 3 --sam --best --strata /sc/orga/scratch/shenl03/genome/bowtie/mouse/mm9 -"
+# # 1       0       chr1    3000038 255     sam-dump quit with error code 3
 
-# this crashes, let's try another one
-~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/prefetch SRR2061074
-~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/sam-dump SRR2061074.sra
-
-
-# 2022-09-20T13:48:13 prefetch.2.11.1: 1) Downloading 'SRR2061074'...
-# 2022-09-20T13:48:13 prefetch.2.11.1:  Downloading via HTTPS...
-# 2022-09-20T13:49:47 prefetch.2.11.1:  HTTPS download succeed
-# 2022-09-20T13:49:52 prefetch.2.11.1:  'SRR2061074' is valid
-# 2022-09-20T13:49:52 prefetch.2.11.1: 1) 'SRR2061074' was downloaded successfully
+# # this crashes, let's try another one
+# ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/prefetch SRR2061074
+# ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/sam-dump SRR2061074.sra
 
 
-# 2022-09-20T13:50:56 prefetch.2.11.1: 'SRR2061074' has 21 unresolved dependencies
-# 2022-09-20T13:50:56 prefetch.2.11.1 int: connection unexpected while executing query within virtual file system module - cannot get remote location for 'NC_000067.5'
+# # 2022-09-20T13:48:13 prefetch.3.0.0: 1) Downloading 'SRR2061074'...
+# # 2022-09-20T13:48:13 prefetch.3.0.0:  Downloading via HTTPS...
+# # 2022-09-20T13:49:47 prefetch.3.0.0:  HTTPS download succeed
+# # 2022-09-20T13:49:52 prefetch.3.0.0:  'SRR2061074' is valid
+# # 2022-09-20T13:49:52 prefetch.3.0.0: 1) 'SRR2061074' was downloaded successfully
 
 
-# forget about this, try the fastqs and map
-
-# 2022-09-20T13:53:55 fastq-dump.2.11.1 warn: connection unexpected while executing query within virtual file system module - can't open NC_000067.5 as a RefSeq or as a WGS
-# 2022-09-20T13:53:55 fastq-dump.2.11.1 err: connection unexpected while executing query within virtual file system module - failed SRR2061073
-# 2022-09-20T13:53:55 fastq-dump.2.11.1 warn: no error - Protected repository is found and ignored.
-# 2022-09-20T13:53:55 fastq-dump.2.11.1 warn: no error - Run 'vdb-config --ignore-protected-repositories' to disable this message.
-
-~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/fastq-dump --split-files SRR2061073
-
-# 2022-09-20T13:53:55 fastq-dump.2.11.1 warn: connection unexpected while executing query within virtual file system module - can't open NC_000067.5 as a RefSeq or as a WGS
-# 2022-09-20T13:53:55 fastq-dump.2.11.1 err: connection unexpected while executing query within virtual file system module - failed SRR2061073
-# 2022-09-20T13:53:55 fastq-dump.2.11.1 warn: no error - Protected repository is found and ignored.
-# 2022-09-20T13:53:55 fastq-dump.2.11.1 warn: no error - Run 'vdb-config --ignore-protected-repositories' to disable this message.
-
-# =============================================================
-# An error occurred during processing.
-# A report was generated into the file '/home/imallona/ncbi_error_report.txt'.
-# If the problem persists, you may consider sending the file
-# to 'sra-tools@ncbi.nlm.nih.gov' for assistance.
-# =============================================================
-
-# fastq-dump quit with error code 3
-
-# https://trace.ncbi.nlm.nih.gov/Traces/sra-reads-be/fastq?acc=SRR2061073
+# # 2022-09-20T13:50:56 prefetch.3.0.0: 'SRR2061074' has 21 unresolved dependencies
+# # 2022-09-20T13:50:56 prefetch.3.0.0 int: connection unexpected while executing query within virtual file system module - cannot get remote location for 'NC_000067.5'
 
 
-# https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR2061138&display=alignment
+# # forget about this, try the fastqs and map
 
-~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/sam-dump SRR2061138
-# [imallona@imlsportmacquarie GSE69806_caution_mm9_rmdup]$ ~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/sam-dump SRR2061138
-# 2022-09-20T14:03:36 sam-dump.2.11.1 warn: connection unexpected while executing query within virtual file system module - can't open NC_000076.5 as a RefSeq or as a WGS
-# 2022-09-20T14:03:37 sam-dump.2.11.1 int: connection unexpected while executing query within virtual file system module - VCursorCellDataDirect( row#1 . idx#3 . READ ) char_ptr failed
-# @HD     VN:1.0  SO:unsorted
-# @SQ     SN:chr10        LN:129993255
-# @SQ     SN:chr11        LN:121843856
-# @SQ     SN:chr12        LN:121257530
-# @SQ     SN:chr13        LN:120284312
-# @SQ     SN:chr14        LN:125194864
-# @SQ     SN:chr15        LN:103494974
-# @SQ     SN:chr16        LN:98319150
-# @SQ     SN:chr17        LN:95272651
-# @SQ     SN:chr18        LN:90772031
-# @SQ     SN:chr19        LN:61342430
-# @SQ     SN:chr1 LN:197195432
-# @SQ     SN:chr2 LN:181748087
-# @SQ     SN:chr3 LN:159599783
-# @SQ     SN:chr4 LN:155630120
-# @SQ     SN:chr5 LN:152537259
-# @SQ     SN:chr6 LN:149517037
-# @SQ     SN:chr7 LN:152524553
-# @SQ     SN:chr8 LN:131738871
-# @SQ     SN:chr9 LN:124076172
-# @SQ     SN:chrM LN:16299
-# @SQ     SN:chrX LN:166650296
-# @SQ     SN:chrY LN:15902555
-# @RG     ID:default
-# @PG     ID:Bowtie       VN:0.12.7       CL:"bowtie -v 3 -q -p 3 -a -m 1 -k 1 --best --strata -S /home/sdewell/bowtie-0.12.7/indexes/mm9 -"
-# 1       16      chr10   3000082 255     sam-dump quit with error code 3
+# # 2022-09-20T13:53:55 fastq-dump.3.0.0 warn: connection unexpected while executing query within virtual file system module - can't open NC_000067.5 as a RefSeq or as a WGS
+# # 2022-09-20T13:53:55 fastq-dump.3.0.0 err: connection unexpected while executing query within virtual file system module - failed SRR2061073
+# # 2022-09-20T13:53:55 fastq-dump.3.0.0 warn: no error - Protected repository is found and ignored.
+# # 2022-09-20T13:53:55 fastq-dump.3.0.0 warn: no error - Run 'vdb-config --ignore-protected-repositories' to disable this message.
 
-~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/vdb-dump --info  SRR2061138
+# ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/fastq-dump --split-files SRR2061073
 
-# [imallona@imlsportmacquarie GSE69806_caution_mm9_rmdup]$ ~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/vdb-dump --info  SRR2061138
-# acc    : SRR2061138
-# path   : https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR2061138/SRR2061138
-# size   : 4,690,569,373
-# cache  : /home/imallona/ncbi/public/sra/SRR2061138.sra
-# percent: 0.000000
-# bytes  : 0
-# type   : Database
-# platf  : SRA_PLATFORM_UNDEFINED
-# SEQ    : 182,845,754
-# REF    : 530,992
-# PRIM   : 88,227,325
-# SCHEMA : NCBI:align:db:alignment_sorted#1.3
-# TIME   : 0x00000000557aeb50 (06/12/2015 16:23)
-# FMT    : BAM
-# FMTVER : 2.5.1
-# LDR    : bam-load.2.5.1
-# LDRVER : 2.5.1
-# LDRDATE: May 28 2015 (5/28/2015 0:0)
-# BAMHDR : 697 bytes / 24 lines
-# BAMHDR : 1 HD-lines
-# BAMHDR : 22 SQ-lines
+# # 2022-09-20T13:53:55 fastq-dump.3.0.0 warn: connection unexpected while executing query within virtual file system module - can't open NC_000067.5 as a RefSeq or as a WGS
+# # 2022-09-20T13:53:55 fastq-dump.3.0.0 err: connection unexpected while executing query within virtual file system module - failed SRR2061073
+# # 2022-09-20T13:53:55 fastq-dump.3.0.0 warn: no error - Protected repository is found and ignored.
+# # 2022-09-20T13:53:55 fastq-dump.3.0.0 warn: no error - Run 'vdb-config --ignore-protected-repositories' to disable this message.
 
-~/soft/sra-tools/sratoolkit.2.11.1-ubuntu64/bin/fasterq-dump  -p   -t .  -O .  SRR2061138
+# # =============================================================
+# # An error occurred during processing.
+# # A report was generated into the file '/home/imallona/ncbi_error_report.txt'.
+# # If the problem persists, you may consider sending the file
+# # to 'sra-tools@ncbi.nlm.nih.gov' for assistance.
+# # =============================================================
+
+# # fastq-dump quit with error code 3
+
+# # https://trace.ncbi.nlm.nih.gov/Traces/sra-reads-be/fastq?acc=SRR2061073
+
+
+# # https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR2061138&display=alignment
+
+# ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/sam-dump SRR2061138
+# # [imallona@imlsportmacquarie GSE69806_caution_mm9_rmdup]$ ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/sam-dump SRR2061138
+# # 2022-09-20T14:03:36 sam-dump.3.0.0 warn: connection unexpected while executing query within virtual file system module - can't open NC_000076.5 as a RefSeq or as a WGS
+# # 2022-09-20T14:03:37 sam-dump.3.0.0 int: connection unexpected while executing query within virtual file system module - VCursorCellDataDirect( row#1 . idx#3 . READ ) char_ptr failed
+# # @HD     VN:1.0  SO:unsorted
+# # @SQ     SN:chr10        LN:129993255
+# # @SQ     SN:chr11        LN:121843856
+# # @SQ     SN:chr12        LN:121257530
+# # @SQ     SN:chr13        LN:120284312
+# # @SQ     SN:chr14        LN:125194864
+# # @SQ     SN:chr15        LN:103494974
+# # @SQ     SN:chr16        LN:98319150
+# # @SQ     SN:chr17        LN:95272651
+# # @SQ     SN:chr18        LN:90772031
+# # @SQ     SN:chr19        LN:61342430
+# # @SQ     SN:chr1 LN:197195432
+# # @SQ     SN:chr2 LN:181748087
+# # @SQ     SN:chr3 LN:159599783
+# # @SQ     SN:chr4 LN:155630120
+# # @SQ     SN:chr5 LN:152537259
+# # @SQ     SN:chr6 LN:149517037
+# # @SQ     SN:chr7 LN:152524553
+# # @SQ     SN:chr8 LN:131738871
+# # @SQ     SN:chr9 LN:124076172
+# # @SQ     SN:chrM LN:16299
+# # @SQ     SN:chrX LN:166650296
+# # @SQ     SN:chrY LN:15902555
+# # @RG     ID:default
+# # @PG     ID:Bowtie       VN:0.12.7       CL:"bowtie -v 3 -q -p 3 -a -m 1 -k 1 --best --strata -S /home/sdewell/bowtie-0.12.7/indexes/mm9 -"
+# # 1       16      chr10   3000082 255     sam-dump quit with error code 3
+
+# ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/vdb-dump --info  SRR2061138
+
+# # [imallona@imlsportmacquarie GSE69806_caution_mm9_rmdup]$ ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/vdb-dump --info  SRR2061138
+# # acc    : SRR2061138
+# # path   : https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR2061138/SRR2061138
+# # size   : 4,690,569,373
+# # cache  : /home/imallona/ncbi/public/sra/SRR2061138.sra
+# # percent: 0.000000
+# # bytes  : 0
+# # type   : Database
+# # platf  : SRA_PLATFORM_UNDEFINED
+# # SEQ    : 182,845,754
+# # REF    : 530,992
+# # PRIM   : 88,227,325
+# # SCHEMA : NCBI:align:db:alignment_sorted#1.3
+# # TIME   : 0x00000000557aeb50 (06/12/2015 16:23)
+# # FMT    : BAM
+# # FMTVER : 2.5.1
+# # LDR    : bam-load.2.5.1
+# # LDRVER : 2.5.1
+# # LDRDATE: May 28 2015 (5/28/2015 0:0)
+# # BAMHDR : 697 bytes / 24 lines
+# # BAMHDR : 1 HD-lines
+# # BAMHDR : 22 SQ-lines
+
+# ~/soft/sra-tools/sratoolkit.3.0.0-ubuntu64/bin/fasterq-dump  -p   -t .  -O .  SRR2061138
+
+# attempt to download H3.3 stop
+
+## get coverages from h3.3 bamfiles
+# like in report 08 / 00
+cd "$WD"/"$gse"_caution_mm9_rmdup
+for fn in $(find . -name "*bam")
+do
+    echo $fn
+    curr=$(basename $fn .bam)
+    echo $curr
+
+    ~/soft/bedtools/bedtools-2.29.2/bin/bedtools genomecov -bga -ibam "$fn" \
+        | gzip -c > "$curr"_cov_bga.bedgraph.gz    
+done
+
+## get coverages from 3.3 bamfiles end
+
 # GSE125068 they indeed contain nuRNA and ribo-seq
 
+cd $WD
+mkdir -p GSE125068
+cd $_
 
+wget 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE125nnn/GSE125068/suppl/GSE125068_HiC.tar.gz'
+wget 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE125068&format=file&file=GSE125068%5FnuRNAseq%2Etar%2Egz'
+wget 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE125068&format=file&file=GSE125068%5Friboseq%2Etar%2Egz'
+
+tar xzvf *tar.gz
+
+
+# GSE GSE125068 end
