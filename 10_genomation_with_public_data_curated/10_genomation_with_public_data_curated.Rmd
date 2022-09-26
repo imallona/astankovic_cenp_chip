@@ -473,15 +473,146 @@ get(gse)
 ```
 
 
+
+
+## GSE69806
+
+test new mm9 data h3.3 - mm9 bamfiles named `rmdup` only to avoid read dup biases
+
 ```{r}
-knitr::knit_exit()
+gse <- 'GSE69806'
 ```
 
 
-## test new mm9 data h3.3
+```{r renamecovs}
+
+meta <- read.csv(file.path(PUBLIC, 'GSE69806_caution_mm9_rmdup', 'sra_metadata_h33.txt'))
+
+```
 
 ```{r}
+covs_fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9_rmdup'),
+    list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9_rmdup')), pattern = '.*bga.bedgraph.gz$'))
 
+covs <- list()
+for (fn in covs_fns) {
+    ## if (DOWNSAMPLE) {
+    ##     tmp <- readGeneric(pipe(sprintf('zcat %s | fgrep chr19', fn)),
+    ##                        header = FALSE, meta.col = list(cov = 4))
+    ## } else{
+    ##     tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4))
+    ## }
+
+    tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4))
+    if (DOWNSAMPLE) {        
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    }
+    
+    tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']]))
+    covs[[fn]] <- tmp
+    rm(tmp)
+}
+
+names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(covs_fns))
+
+
+if (DOWNSAMPLE) {
+    for (item in names(covs)) {
+        covs[[item]] <- keepSeqlevels(covs[[item]], "chr19", pruning.mode="coarse")
+    }
+}
+
+names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(names(covs)))
+meta <- meta[meta$Run %in% names(covs),]
+rownames(meta) <- meta$Run
+names(covs) <- sprintf('%s %s\n%s',  meta[names(covs), 'chip_antibody'],
+                       names(covs), meta[names(covs), 'Treatment'])
+
+```
+
+
+```{r}
+covs <- lapply(covs, function(x) ScoreMatrixBin(x, all_proms,
+                                              bin.num = 50,
+                                              type = "auto",  strand.aware = TRUE))
+
+
+
+covs <- ScoreMatrixList(covs, bin.num = 50)
+
+```
+
+```{r, fig.width = 24, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(covs)),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.5)
+```
+
+
+```{r, eval = TRUE}
+## for stratifying plotmetas by cluster
+
+mat.list = lapply(sml, function(x) x@.Data)
+    group.vector = NULL
+
+clust.matrix = 1:4
+mat2 = do.call("cbind", mat.list[clust.matrix])
+clustfun = function(x) kmeans(x, centers = 6)$cluster
+
+set.seed(1)
+clu = clustfun(mat2)
+
+group.vector = clu
+str(mat.list)
+## mat.list = lapply(mat.list, function(x) split(x = x, f = group.vector))
+
+head(mat.list[[1]])
+head(clu)
+
+longer <- list()
+
+for (samp in names(mat.list)) {
+    ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name)
+    longer[[samp]] <- list()
+    for (cl in unique(group.vector)) {
+        idx <- group.vector == cl
+        tmp <- data.frame(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]][idx,]),
+                                   cols = 1:ncol(mat.list[[samp]]),
+                                   names_to = 'pos'),
+                          cluster = cl,
+                          sample = samp)
+        longer[[samp]][[cl]] <- tmp
+
+
+    }
+     longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]])
+}
+
+longer <- do.call(rbind.data.frame, longer)
+
+longer$pos <- as.numeric(gsub('V', '', longer$pos))
+rm(mat.list)
+
+
+```
+
+
+```{r, eval = TRUE}
+
+## only some dots here - check
+
+ggplot(data = head(longer, 10000), aes(x = pos, y = value, col = cluster)) +
+    geom_smooth(method = "loess") +
+    facet_wrap(~ sample)
+
+```
+
+```{r}
+knitr::knit_exit()
 ```
 
 ## GSE85873
