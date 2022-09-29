@@ -30,6 +30,7 @@ suppressPackageStartupMessages({
     library(org.Mm.eg.db)
     library(viridis)
     library(RColorBrewer)
+    library(ggplot2)
 })
 ```
 
@@ -611,9 +612,65 @@ ggplot(data = head(longer, 10000), aes(x = pos, y = value, col = cluster)) +
 
 ```
 
-```{r}
-knitr::knit_exit()
+
+```{r attemptmeans, eval = TRUE}
+
+mat.list = lapply(sml, function(x) x@.Data)
+    group.vector = NULL
+
+clust.matrix = 1:4
+mat2 = do.call("cbind", mat.list[clust.matrix])
+clustfun = function(x) kmeans(x, centers = 6)$cluster
+
+set.seed(1)
+clu = clustfun(mat2)
+
+group.vector = clu
+str(mat.list)
+## mat.list = lapply(mat.list, function(x) split(x = x, f = group.vector))
+
+head(mat.list[[1]])
+head(clu)
+
+longer <- list()
+
+for (samp in names(mat.list)) {
+    ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name)
+    longer[[samp]] <- list()
+    for (cl in unique(group.vector)) {
+        idx <- group.vector == cl
+        tmp <- colMeans(as.data.frame(mat.list[[samp]][idx,]))
+
+        tmp <- data.frame(value = tmp,
+                          pos = names(tmp),
+                          cluster = cl,
+                          sample = samp)
+        longer[[samp]][[cl]] <- tmp
+
+
+    }
+     longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]])
+}
+
+longer <- do.call(rbind.data.frame, longer)
+
+longer$pos <- as.numeric(gsub('V', '', longer$pos))
+rm(mat.list)
+
 ```
+
+
+```{r, eval = TRUE}
+
+## only some dots here - check
+
+ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
+    geom_smooth(method = "loess") +
+    facet_wrap(~ cluster)
+
+```
+
+
 
 ## GSE85873
 
@@ -676,6 +733,84 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
 assign(gse, peaks)
 get(gse)
 
+```
+
+
+```{r meanswider, eval = TRUE}
+
+mat.list = lapply(c(sml_with_cpg, GSE125068, peaks), function(x) x@.Data)
+    group.vector = NULL
+
+clust.matrix = 1:4
+mat2 = do.call("cbind", mat.list[clust.matrix])
+clustfun = function(x) kmeans(x, centers = 6)$cluster
+
+set.seed(1)
+clu = clustfun(mat2)
+
+group.vector = clu
+str(mat.list)
+## mat.list = lapply(mat.list, function(x) split(x = x, f = group.vector))
+
+head(mat.list[[1]])
+head(clu)
+
+longer <- list()
+
+for (samp in names(mat.list)) {
+    ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name)
+    longer[[samp]] <- list()
+    for (cl in unique(group.vector)) {
+        tryCatch({
+        idx <- group.vector == cl
+        tmp <- colMeans(as.data.frame(mat.list[[samp]][idx,]))
+
+        tmp <- data.frame(value = tmp,
+                          pos = names(tmp),
+                          cluster = cl,
+                          sample = samp)
+        longer[[samp]][[cl]] <- tmp
+        }, error = function(x) print(x))
+
+
+    }
+     longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]])
+}
+
+longer <- do.call(rbind.data.frame, longer)
+
+longer$pos <- as.numeric(gsub('V', '', longer$pos))
+rm(mat.list)
+
+```
+
+
+```{r, fig.width = 10, fig.height = 8, eval = TRUE}
+
+## only some dots here - check
+
+ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
+    geom_smooth(method = "loess") +
+    facet_wrap(~ cluster)
+
+```
+
+
+```{r, fig.width = 10, fig.height = 8, eval = TRUE}
+
+## only some dots here - check
+
+ggplot(data = longer, aes(x = pos, y = value, color = cluster)) +
+    geom_smooth(method = "loess") +
+    facet_wrap(~ sample)
+
+```
+
+
+## till here
+
+```{r}
+knitr::knit_exit()
 ```
 
 ## GSE21161
