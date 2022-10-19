@@ -50,7 +50,7 @@ DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
 PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
 
 ## if downsampled, only chr19
-DOWNSAMPLE <- TRUE
+DOWNSAMPLE <- FALSE
 
 BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
 ```
@@ -526,8 +526,9 @@ if (DOWNSAMPLE) {
 names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(names(covs)))
 meta <- meta[meta$Run %in% names(covs),]
 rownames(meta) <- meta$Run
-names(covs) <- sprintf('%s %s\n%s',  meta[names(covs), 'chip_antibody'],
-                       names(covs), meta[names(covs), 'Treatment'])
+names(covs) <- sprintf('`%s` %s\n%s\n%s',  meta[names(covs), 'chip_antibody'],
+                       names(covs), meta[names(covs), 'Treatment'],
+                       meta[names(covs), 'tissue.cell_type'])
 
 ```
 
@@ -550,9 +551,11 @@ multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(covs)),
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
-                cex.main = 0.5)
+                cex.main = 0.1)
 ```
 
+
+## Stratified metaplots / export gene names by cluster
 
 ```{r, eval = TRUE}
 ## for stratifying plotmetas by cluster
@@ -568,12 +571,31 @@ set.seed(1)
 clu = clustfun(mat2)
 
 group.vector = clu
-str(mat.list)
+## str(mat.list)
 ## mat.list = lapply(mat.list, function(x) split(x = x, f = group.vector))
 
-head(mat.list[[1]])
-head(clu)
+## head(mat.list[[1]])
+## head(clu)
+```
 
+Exporting gene names by cluster
+
+
+```{r}
+stopifnot(length(all_proms$tx_name) == length(clu))
+
+for (cl in unique(clu)) {
+    idx <- clu == cl
+    write.csv(x = data.frame(all_proms[idx,]),
+              file = sprintf('cluster_%s_promoters.csv', cl))
+}
+```
+
+
+
+
+
+```{r deleteme, eval = FALSE}
 longer <- list()
 
 for (samp in names(mat.list)) {
@@ -626,11 +648,11 @@ set.seed(1)
 clu = clustfun(mat2)
 
 group.vector = clu
-str(mat.list)
+## str(mat.list)
 ## mat.list = lapply(mat.list, function(x) split(x = x, f = group.vector))
 
-head(mat.list[[1]])
-head(clu)
+## head(mat.list[[1]])
+## head(clu)
 
 longer <- list()
 
@@ -660,13 +682,17 @@ rm(mat.list)
 ```
 
 
-```{r, eval = TRUE}
+```{r, eval = TRUE, fig.width = 6, fig.height = 6}
 
 ## only some dots here - check
 
 ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
     geom_smooth(method = "loess") +
-    facet_wrap(~ cluster)
+    facet_wrap(~ cluster) +
+    theme(aspect.ratio=1) +
+    scale_x_discrete(limits = c(-2000, 1e3)) +
+    xlab('nucleotides from TSS')
+    
 
 ```
 
@@ -678,6 +704,7 @@ These are peaks, not signal. mm10, ncbi-style chrom names.
 
 ```{r}
 gse <- 'GSE85873'
+
 
 fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*gz$'))
 
@@ -706,7 +733,7 @@ peaks <- ScoreMatrixList(peaks,
 ```
 
 
-```{r, fig.width = 14, fig.height = 6}
+```{r, fig.width = 18, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
@@ -719,7 +746,7 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
 
 Shall we cluster by CENP binding + K4me1 instead? Because a subset is indeed binding enhancers...
 
-```{r, fig.width = 14, fig.height = 6}
+```{r, fig.width = 18, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
@@ -749,11 +776,11 @@ set.seed(1)
 clu = clustfun(mat2)
 
 group.vector = clu
-str(mat.list)
+## str(mat.list)
 ## mat.list = lapply(mat.list, function(x) split(x = x, f = group.vector))
 
-head(mat.list[[1]])
-head(clu)
+## head(mat.list[[1]])
+## head(clu)
 
 longer <- list()
 
@@ -785,15 +812,73 @@ rm(mat.list)
 ```
 
 
+```{r}
+longer$category <- 'else'
+longer$category[grepl('cenp', longer$sample)] <- 'CENP'
+longer$category[grepl('ATAC', longer$sample)] <- 'ATAC'
+longer$category[grepl('K4me3', longer$sample)] <- 'K4me3'
+longer$category[grepl('Pol2', longer$sample)] <- 'Pol2'
+
+
+```
+
+```{r}
+ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
+    geom_smooth(method = "loess") +
+    facet_wrap(~ cluster)
+```
+
+
+What about min-max scaling?
+
+
+```{r}
+
+
+
+val2unit <- function(x) {
+    (x - min(x, na.rm = TRUE))/(max(x, na.rm = TRUE) - 
+                                min(x, na.rm = TRUE))
+}
+
+test <- longer %>%
+    group_by(sample) %>% 
+    summarise(value = val2unit(value),
+              pos = pos,
+              cluster = cluster,
+              category = category)
+
+
+ggplot(data = test, aes(x = pos, y = value, color = sample)) +
+    geom_smooth(method = "loess") +
+    facet_grid(cluster ~ category)
+
+```
+
+
+
 ```{r, fig.width = 10, fig.height = 8, eval = TRUE}
 
 ## only some dots here - check
 
 ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
     geom_smooth(method = "loess") +
-    facet_wrap(~ cluster)
+    facet_grid(cluster ~ category)
 
 ```
+
+
+
+```{r, fig.width = 10, fig.height = 8, eval = TRUE}
+
+## only some dots here - check
+
+ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
+    geom_smooth(method = "loess") +
+    facet_grid(cluster ~ category)
+
+```
+
 
 
 ```{r, fig.width = 10, fig.height = 8, eval = TRUE}
@@ -806,10 +891,71 @@ ggplot(data = longer, aes(x = pos, y = value, color = cluster)) +
 
 ```
 
+```{r, fig.width = 10, fig.height = 8, eval = TRUE}
+
+## only some dots here - check
+test$cluster <- as.factor(test$cluster)
+ggplot(data = test, aes(x = pos, y = value, color = cluster)) +
+    geom_smooth(method = "loess") +
+    facet_wrap(~ sample)
+
+```
+
+## lung fibros
+
+```{r}
+
+gse <- 'lung_liver_cenp'
+
+(fns <- file.path(PUBLIC, gse, 'out', 'bamCoverage',
+                  list.files(file.path(PUBLIC, gse, 'out', 'bamCoverage'), pattern = '.*bw$')))
+
+fns <- grep('filtered', fns, invert = TRUE, value = TRUE)
+    
+## ?ScoreMatrixList
+
+## the all_proms is already downsampled
+
+bws <- list()
+
+for (fn in fns) {
+    bws[[basename(fn)]] <- tryCatch({
+        ScoreMatrixBin(fn, windows = all_proms,
+                    type = "auto",
+                    bin.num = 50,
+                    strand.aware = TRUE)
+    }, error = function(x) {
+        tmp <- readBigWig(fn, windows = all_proms_ncbi,
+                          type = "auto",  strand.aware = TRUE)
+        
+        seqlevelsStyle(tmp) <- "UCSC"
+        bws[[basename(fn)]] <- ScoreMatrixBin(tmp, all_proms_ncbi,
+                                              bin.num = 50,
+                                              type = "auto",  strand.aware = TRUE)
+
+        rm(tmp)
+    })    
+}
+
+
+bws <- ScoreMatrixList(bws, bin.num = 50)
+names(bws) <- gsub('.seq_depth_norm.bw', '', names(bws))
+```
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(bws)),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.7)
+
+```
 
 ## till here
 
-```{r}
+```{r, cache = FALSE}
 knitr::knit_exit()
 ```
 
