@@ -1,5 +1,5 @@
 ---
-title: "CENP ChiP-seq and other epigenomic (public) data, sample swap corrected"
+title: "CENP ChiP-seq and other epigenomic (public) data, sample swap corrected, gene promoters only"
 author: "Izaskun Mallona, Mark D. Robinson lab, University of Zurich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
@@ -31,6 +31,7 @@ suppressPackageStartupMessages({
     library(viridis)
     library(RColorBrewer)
     library(ggplot2)
+    library(dplyr)
 })
 ```
 
@@ -46,6 +47,8 @@ knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
 This analysis is mm10.
 
 ```{r}
+NTHREADS <- 20
+
 DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
 PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
 
@@ -64,13 +67,34 @@ genes_proms <- promoters(genes(txdb), upstream = 2000, downstream = 1000)
 
 tsss <- resize(transcripts(txdb), width = 1, fix = 'start')
 
+allowed_chr <- paste0('chr', c(1:19, 'X'))
+
 if (DOWNSAMPLE) {
     all_proms <- keepSeqlevels(all_proms, "chr19", pruning.mode="coarse")
     genes_proms <- keepSeqlevels(genes_proms, "chr19", pruning.mode="coarse")
     tsss <-  keepSeqlevels(tsss, "chr19", pruning.mode="coarse")
+} else {
+    all_proms <- keepSeqlevels(all_proms, allowed_chr, pruning.mode="coarse")
+    genes_proms <- keepSeqlevels(genes_proms, allowed_chr, pruning.mode="coarse")
+    tsss <-  keepSeqlevels(tsss, allowed_chr, pruning.mode="coarse")
 }
 
+
 ## genes <- genes(txdb)
+```
+
+
+```{r eval = FALSE}
+
+keytypes(org.Mm.eg.db)
+head(all_proms$tx_name)
+all_proms$symbol <- mapIds(org.Mm.eg.db,
+                           keys = sapply(strsplit(all_proms$tx_name, '.', fixed = TRUE),
+                                         function(x) return(x[1])),
+                           column = "SYMBOL",
+                           keytype = "ENSEMBLTRANS",
+                           multiVals = "first")
+all_proms
 ```
 
 ```{r}
@@ -99,7 +123,12 @@ if (DOWNSAMPLE) {
     for (item in names(covs)) {
         covs[[item]] <- keepSeqlevels(covs[[item]], "chr19", pruning.mode="coarse")
     }
+} else {
+    for (item in names(covs)) {
+        covs[[item]] <- keepSeqlevels(covs[[item]], allowed_chr, pruning.mode="coarse")
+    }
 }
+
 ```
 
 Rename sample swaps!!!
@@ -114,8 +143,27 @@ covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')]
 ```
 
 ```{r}
-sml <- ScoreMatrixList(covs, all_proms, bin.num = 50, type = "auto",  strand.aware = TRUE)
+## ?ScoreMatrix
+sml <- ScoreMatrixList(covs, genes_proms, bin.num = 50, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
+                       is.noCovNA = TRUE)
 ```
+
+```{r}
+
+## we cluster once on CENPA-in-house-only, and reuse that for plotting across datasets
+mat.list = lapply(sml, function(x) x@.Data)
+    group.vector = NULL
+
+clust.matrix = 1:4
+mat2 = do.call("cbind", mat.list[clust.matrix])
+clustfun = function(x) kmeans(x, centers = 5)$cluster
+
+set.seed(1)
+clu = clustfun(mat2)
+
+rm(mat.list, mat2)
+```
+
 
 # Original data
 
@@ -126,8 +174,11 @@ sml <- ScoreMatrixList(covs, all_proms, bin.num = 50, type = "auto",  strand.awa
 ```{r noscaling, fig.width = 8, fig.height = 6}
 
 set.seed(1)
+## ?multiHeatMatrix
+
+
 multiHeatMatrix(sml, xcoords = c(-2000, 1000),
-                clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                clustfun = clu,
                 order = TRUE,
                 clust.matrix = 1:4)
 
@@ -188,13 +239,14 @@ if (DOWNSAMPLE) {
 ```{r, fig.width = 8, fig.height = 6}
 
 sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
-                          windows = all_proms, strand.aware = TRUE,
+                          windows = genes_proms, strand.aware = TRUE,
                           bin.num = 50)
 
 
 sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
-                                all_proms, bin.num = 50,
-                                strand.aware = TRUE)
+                                genes_proms, bin.num = 50,
+                                strand.aware = TRUE,
+                                cores = NTHREADS)
 
 names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
 ```
@@ -225,7 +277,7 @@ multiHeatMatrix(sml_with_cpg,
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_with_cpg,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4)
@@ -249,7 +301,7 @@ multiHeatMatrix(sml_with_cpg,
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_with_cpg,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 winsorize = c(0,98),
                 order = TRUE,
                 col = viridis(9),
@@ -406,27 +458,27 @@ gse <- 'GSE125068'
 
 ## the all_proms is already downsampled
 
-all_proms_ncbi <- all_proms
-seqlevelsStyle(all_proms_ncbi) <- "NCBI"
+genes_proms_ncbi <- genes_proms
+seqlevelsStyle(genes_proms_ncbi) <- "NCBI"
 
 
-## bws <- lapply(fns, function(x) ScoreMatrix(x, windows = all_proms,
+## bws <- lapply(fns, function(x) ScoreMatrix(x, windows = genes_proms,
 ##                                            type = "auto",  strand.aware = TRUE))
 
 bws <- list()
 
 for (fn in fns) {
     bws[[basename(fn)]] <- tryCatch({
-        ScoreMatrixBin(fn, windows = all_proms,
+        ScoreMatrixBin(fn, windows = genes_proms,
                     type = "auto",
                     bin.num = 50,
                     strand.aware = TRUE)
     }, error = function(x) {
-        tmp <- readBigWig(fn, windows = all_proms_ncbi,
+        tmp <- readBigWig(fn, windows = genes_proms_ncbi,
                           type = "auto",  strand.aware = TRUE)
         
         seqlevelsStyle(tmp) <- "UCSC"
-        bws[[basename(fn)]] <- ScoreMatrixBin(tmp, all_proms_ncbi,
+        bws[[basename(fn)]] <- ScoreMatrixBin(tmp, genes_proms_ncbi,
                                               bin.num = 50,
                                               type = "auto",  strand.aware = TRUE)
 
@@ -435,14 +487,14 @@ for (fn in fns) {
 }
 
 
-bws <- ScoreMatrixList(bws, bin.num = 50)
+bws <- ScoreMatrixList(bws, bin.num = 50, cores = NTHREADS)
 names(bws) <- gsub('.bw', '', names(bws))
 ```
 
 ```{r, fig.width = 14, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, bws),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -459,7 +511,7 @@ get(gse)
 ```{r, fig.width = 14, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(bws)),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -534,25 +586,42 @@ names(covs) <- sprintf('`%s` %s\n%s\n%s',  meta[names(covs), 'chip_antibody'],
 
 
 ```{r}
-covs <- lapply(covs, function(x) ScoreMatrixBin(x, all_proms,
-                                              bin.num = 50,
-                                              type = "auto",  strand.aware = TRUE))
+covs <- lapply(covs, function(x) ScoreMatrixBin(x, genes_proms,
+                                                is.noCovNA = TRUE,
+                                                bin.num = 50,
+                                                type = "auto",  strand.aware = TRUE))
 
 
 
-covs <- ScoreMatrixList(covs, bin.num = 50)
+covs <- ScoreMatrixList(covs, bin.num = 50, cores = NTHREADS)
 
+```
+
+
+
+```{r, fig.width = 24, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, covs),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.3)
 ```
 
 ```{r, fig.width = 24, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(covs)),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
+                winsorize = c(1,99),
                 col = viridis(9),
                 clust.matrix = 1:4,
-                cex.main = 0.1)
+                cex.main = 0.3)
 ```
+
+
 
 
 ## Stratified metaplots / export gene names by cluster
@@ -565,7 +634,7 @@ mat.list = lapply(sml, function(x) x@.Data)
 
 clust.matrix = 1:4
 mat2 = do.call("cbind", mat.list[clust.matrix])
-clustfun = function(x) kmeans(x, centers = 6)$cluster
+clustfun = function(x) kmeans(x, centers = 5)$cluster
 
 set.seed(1)
 clu = clustfun(mat2)
@@ -582,11 +651,11 @@ Exporting gene names by cluster
 
 
 ```{r}
-stopifnot(length(all_proms$tx_name) == length(clu))
+stopifnot(length(genes_proms$ensembl) == length(clu))
 
 for (cl in unique(clu)) {
     idx <- clu == cl
-    write.csv(x = data.frame(all_proms[idx,]),
+    write.csv(x = data.frame(genes_proms[idx,]),
               file = sprintf('cluster_%s_promoters.csv', cl))
 }
 ```
@@ -624,7 +693,7 @@ rm(mat.list)
 ```
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 ## only some dots here - check
 
@@ -642,7 +711,7 @@ mat.list = lapply(sml, function(x) x@.Data)
 
 clust.matrix = 1:4
 mat2 = do.call("cbind", mat.list[clust.matrix])
-clustfun = function(x) kmeans(x, centers = 6)$cluster
+clustfun = function(x) kmeans(x, centers = 5)$cluster
 
 set.seed(1)
 clu = clustfun(mat2)
@@ -718,6 +787,12 @@ if (DOWNSAMPLE){
 
         peaks[[item]] <- keepSeqlevels(peaks[[item]], "chr19", pruning.mode="coarse")
     }
+} else {
+        for (item in names(peaks)) {
+        seqlevelsStyle(peaks[[item]]) <- 'UCSC'
+
+        peaks[[item]] <- keepSeqlevels(peaks[[item]], allowed_chr, pruning.mode="coarse")
+    }
 }
 
 names(peaks)
@@ -726,17 +801,17 @@ names(peaks) <- c('K4me3_wt_HC_1', 'K4me3_wt_NE_1', 'K4me3_wt_HC_2', 'K4me3_wt_N
 names(peaks)
 
 peaks <- ScoreMatrixList(peaks,
-                         all_proms,
+                         genes_proms,
                          bin.num = 50,
                          type = "auto",  strand.aware = TRUE)
 
 ```
 
 
-```{r, fig.width = 18, fig.height = 6}
+```{r, fig.width = 22, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -744,15 +819,15 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
 
 ```
 
-Shall we cluster by CENP binding + K4me1 instead? Because a subset is indeed binding enhancers...
+Shall we cluster by CpGi and H3K4me1 instead? Because it is indeed binding H3K4me1-harboring promoters (=with enhancer marks)
 
-```{r, fig.width = 18, fig.height = 6}
+```{r, fig.width = 22, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
-                clust.matrix = c(1:4, 14),
+                clust.matrix = c(5, 20),
                 cex.main = 0.8)
 ```
 
@@ -763,14 +838,14 @@ get(gse)
 ```
 
 
-```{r meanswider, eval = TRUE}
+```{r meanswider, eval = TRUE, message = FALSE}
 
 mat.list = lapply(c(sml_with_cpg, GSE125068, peaks), function(x) x@.Data)
     group.vector = NULL
 
 clust.matrix = 1:4
 mat2 = do.call("cbind", mat.list[clust.matrix])
-clustfun = function(x) kmeans(x, centers = 6)$cluster
+clustfun = function(x) kmeans(x, centers = 5)$cluster
 
 set.seed(1)
 clu = clustfun(mat2)
@@ -822,7 +897,7 @@ longer$category[grepl('Pol2', longer$sample)] <- 'Pol2'
 
 ```
 
-```{r}
+```{r, fig.width = 8, fig.height = 8}
 ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
     geom_smooth(method = "loess") +
     facet_wrap(~ cluster)
@@ -832,7 +907,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
 What about min-max scaling?
 
 
-```{r}
+```{r, fig.width = 8, fig.height = 8}
 
 
 
@@ -901,7 +976,9 @@ ggplot(data = test, aes(x = pos, y = value, color = cluster)) +
 
 ```
 
-## lung fibros
+## CENPA in lung fibros
+
+Is CENPA binding to these promoters neuron-specific?
 
 ```{r}
 
@@ -914,22 +991,22 @@ fns <- grep('filtered', fns, invert = TRUE, value = TRUE)
     
 ## ?ScoreMatrixList
 
-## the all_proms is already downsampled
+## the genes_proms is already downsampled
 
 bws <- list()
 
 for (fn in fns) {
     bws[[basename(fn)]] <- tryCatch({
-        ScoreMatrixBin(fn, windows = all_proms,
+        ScoreMatrixBin(fn, windows = genes_proms,
                     type = "auto",
                     bin.num = 50,
                     strand.aware = TRUE)
     }, error = function(x) {
-        tmp <- readBigWig(fn, windows = all_proms_ncbi,
+        tmp <- readBigWig(fn, windows = genes_proms_ncbi,
                           type = "auto",  strand.aware = TRUE)
         
         seqlevelsStyle(tmp) <- "UCSC"
-        bws[[basename(fn)]] <- ScoreMatrixBin(tmp, all_proms_ncbi,
+        bws[[basename(fn)]] <- ScoreMatrixBin(tmp, genes_proms_ncbi,
                                               bin.num = 50,
                                               type = "auto",  strand.aware = TRUE)
 
@@ -945,7 +1022,7 @@ names(bws) <- gsub('.seq_depth_norm.bw', '', names(bws))
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(bws)),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -970,7 +1047,7 @@ gse <- 'GSE21161'
 fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'), 
                  list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*bw$'))
 
-## bws <- ScoreMatrixList(fns, all_proms,
+## bws <- ScoreMatrixList(fns, genes_proms,
 ##                        type = "auto",  strand.aware = TRUE,
 ##                        bin.num = 50)
 
@@ -989,8 +1066,8 @@ for (fn in fns) {
 
     curr[[fn]] <- ScoreMatrixBin(tmp,
                               bin.num = 50,
-                              all_proms,
-                              type = "auto",  strand.aware = TRUE)
+                              genes_proms,
+                              type = "auto",  strand.aware = TRUE) 
 
     rm(tmp)        
 }
@@ -1008,14 +1085,14 @@ names(curr) <- c("CREB_SC_un_B1",
 names(curr)
 
 
-curr <- ScoreMatrixList(curr, bin.num = 50)
+curr <- ScoreMatrixList(curr, bin.num = 50, cores = NTHREADS)
 
 ```
 
 ```{r, fig.width = 24, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, curr),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -1028,7 +1105,7 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, curr),
 ```{r, fig.width = 28, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, curr),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 clust.matrix = 1:4,
                 col = brewer.pal(9,"Blues"),
@@ -1056,7 +1133,7 @@ gse <- 'GSE69806'
 fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'),
                  list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*txt.gz$'))
 
-## bws <- ScoreMatrixList(fns, all_proms,
+## bws <- ScoreMatrixList(fns, genes_proms,
 ##                        type = "auto",  strand.aware = TRUE,
 ##                        bin.num = 50)
 
@@ -1076,7 +1153,7 @@ for (fn in fns) {
 
     curr[[fn]] <- ScoreMatrixBin(tmp,
                               bin.num = 50,
-                              all_proms,
+                              genes_proms,
                               type = "auto",  strand.aware = TRUE)
 
     rm(tmp)        
@@ -1097,7 +1174,7 @@ set.seed(1)
 
 curr[[3]] <- NULL ## has no intervals in the range
 multiHeatMatrix(c(sml_with_cpg, curr),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -1108,7 +1185,7 @@ multiHeatMatrix(c(sml_with_cpg, curr),
 ```{r, fig.width = 30, fig.height = 6, cache = FALSE}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -1121,7 +1198,7 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
 ```{r, fig.width = 30, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 clust.matrix = 1:4,
                 col = brewer.pal(9,"Blues"),
@@ -1147,7 +1224,7 @@ gse <- 'GSE69806'
 fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'),
                  list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*cnt.gz$'))
 
-## bws <- ScoreMatrixList(fns, all_proms,
+## bws <- ScoreMatrixList(fns, genes_proms,
 ##                        type = "auto",  strand.aware = TRUE,
 ##                        bin.num = 50)
 
@@ -1167,7 +1244,7 @@ for (fn in fns) {
 
     curr[[fn]] <- ScoreMatrixBin(tmp,
                               bin.num = 50,
-                              all_proms,
+                              genes_proms,
                               type = "auto",  strand.aware = TRUE)
 
     rm(tmp)        
@@ -1179,7 +1256,7 @@ names(curr) <- gsub('.cnt.gz', '', gsub('GSE69806_Mus_musculus.NCBIM37.62.', '',
 names(curr)
 
 
-curr <- ScoreMatrixList(curr, bin.num = 50)
+curr <- ScoreMatrixList(curr, bin.num = 50, cores = NTHREADS)
 
 ```
 
@@ -1188,7 +1265,7 @@ set.seed(1)
 
 curr[[3]] <- NULL ## has no intervals in the range
 multiHeatMatrix(c(sml_with_cpg, curr),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -1199,7 +1276,7 @@ multiHeatMatrix(c(sml_with_cpg, curr),
 ```{r, fig.width = 30, fig.height = 6, cache = FALSE}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -1212,7 +1289,7 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
 ```{r, fig.width = 30, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, GSE125068, GSE85873, GSE21161, curr),
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
                 order = TRUE,
                 clust.matrix = 1:4,
                 col = brewer.pal(9,"Blues"),
@@ -1234,7 +1311,7 @@ get(gse)
 c(sml_with_cpg, GSE125068, GSE85873, GSE21161)
 names(c(sml_with_cpg, GSE125068, GSE85873, GSE21161))
 
-## joint <- ScoreMatrixList(list(sml_with_cpg, GSE125068, GSE85873, GSE21161), targets = all_proms,
+## joint <- ScoreMatrixList(list(sml_with_cpg, GSE125068, GSE85873, GSE21161), targets = genes_proms,
 ##                          bin.num = 50)
 
 ## c(sml_with_cpg, GSE125068, GSE85873, GSE21161)
