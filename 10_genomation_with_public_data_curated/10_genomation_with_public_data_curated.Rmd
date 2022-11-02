@@ -1030,6 +1030,86 @@ multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(bws)),
 
 ```
 
+## add some expression data, armor-based
+
+from vkorob/armor
+
+
+```{r}
+# imlstaupo ln -s /home/vkorob/scRNAseq_GSE125068/output/outputR/ ; in shared armor_GSE125068_out
+ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor'
+edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt'))
+    
+edge <- list()
+for (fn in edge_fns) {
+    ## if (DOWNSAMPLE) {
+    ##     tmp <- readGeneric(pipe(sprintf('zcat %s | fgrep chr19', fn)),
+    ##                        header = FALSE, meta.col = list(cov = 4))
+    ## } else{
+    ##     tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4))
+    ## }
+
+    tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12,
+                                                          logCPM = 13, F = 14, pval = 15, padj = 16))
+
+    seqlevelsStyle(tmp) <- "UCSC"
+    if (DOWNSAMPLE) {        
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    }
+    
+    edge[[fn]] <- tmp
+    rm(tmp)
+}
+
+names(edge) <-  gsub('edgeR_dge_results_', '', basename(edge_fns))
+
+
+if (DOWNSAMPLE){
+    for (item in names(edge)) {
+        seqlevelsStyle(edge[[item]]) <- 'UCSC'
+
+        edge[[item]] <- keepSeqlevels(edge[[item]], "chr19", pruning.mode="coarse")
+    }
+} else {
+        for (item in names(edge)) {
+        seqlevelsStyle(edge[[item]]) <- 'UCSC'
+
+        edge[[item]] <- keepSeqlevels(edge[[item]], allowed_chr, pruning.mode="coarse")
+    }
+}
+
+
+
+
+## the weight col is the metadata one
+## edge_sm <- ScoreMatrixList(edge, genes_proms, bin.num = 50, weight.col = 'logFC')
+
+
+edge_sm <- lapply(edge, function(x) ScoreMatrixBin(x, genes_proms,
+                                                is.noCovNA = TRUE,
+                                                bin.num = 50,
+                                                type = "auto",  strand.aware = TRUE))
+
+
+
+edge <- ScoreMatrixList(edge_sm, bin.num = 50, cores = NTHREADS)
+
+
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, edge),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.7)
+
+```
+
+
+```{r}
+
+```
+
 ## till here
 
 ```{r, cache = FALSE}

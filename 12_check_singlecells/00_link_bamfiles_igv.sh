@@ -28,6 +28,7 @@ do
     
     fullpath=$(find /home/Shared_s3it/imallona/baptiste_jaeger/02_velocyto_mapping/star -name "$cell*bam" -print -quit)
     ln -s $fullpath .
+
 done
 
 cd ../prolif
@@ -89,4 +90,24 @@ do
 
         fullpath=$(find /home/Shared_s3it/imallona/baptiste_jaeger/02_velocyto_mapping/star -name "$cell*bam" -print -quit)
     ln -s $fullpath .  
+done
+
+
+## forgot to index
+
+cd ../neurons
+for fullpath in $(find . -name "*bam")
+do
+    echo $fullpath
+    
+    samtools index -@ 30 $(basename $fullpath)
+done
+
+cd ../prolif
+
+for fullpath in $(find . -name "*bam")
+do
+    echo $fullpath
+    
+    samtools index -@ 30 $(basename $fullpath)
 done
