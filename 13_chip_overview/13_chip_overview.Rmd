@@ -1490,10 +1490,10 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161),
 ```{r}
 ## mat.list = lapply(c(sml_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161), function(x) x@.Data)
 
-mat.list = lapply(intersectScoreMatrixList(c(sml_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161), reorder = TRUE),
+mat.list = lapply(intersectScoreMatrixList(c(sm, GSE125068, peaks, lung_liver_cenp, GSE21161), reorder = TRUE),
                   function(x) x@.Data)
 
-names(mat.list) <- names(c(sml_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161))
+names(mat.list) <- names(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161))
 longer <- list()
 for (samp in names(mat.list)) {
     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name)
@@ -1551,7 +1551,8 @@ longer <- longer[longer$category != 'ex_riboRNA',]
 
 ## longer$panel <- ifelse(grepl('^eg_', longer$category), yes = 'chromatin', no = 'RNA')
 
-longer$panel[grepl('K4', longer$category)] <- 'K4me3'
+longer$panel[grepl('K4me3', longer$category)] <- 'K4me3'
+longer$panel[grepl('K4me1', longer$category)] <- 'active'
 longer$panel[grepl('Pol2', longer$category)] <- 'RNA'
 longer$panel[grepl('ATAC', longer$category)] <- 'active'
 longer$panel[grepl('K27ac', longer$category)] <- 'active'
@@ -1632,7 +1633,7 @@ Finally, what if plotting the raw data? without min/max
 
 ```{r}
 ## mat.list = lapply(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161), function(x) x@.Data)
-mat.list = lapply(intersectScoreMatrixList(c(sml_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161), reorder = TRUE),
+mat.list = lapply(intersectScoreMatrixList(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161), reorder = TRUE),
                   function(x) x@.Data)
 
 names(mat.list) <- names(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161))
@@ -1692,7 +1693,8 @@ longer <- longer[longer$category != 'ex_riboRNA',]
 
 ## longer$panel <- ifelse(grepl('^eg_', longer$category), yes = 'chromatin', no = 'RNA')
 
-longer$panel[grepl('K4', longer$category)] <- 'K4me3'
+longer$panel[grepl('K4me3', longer$category)] <- 'K4me3'
+longer$panel[grepl('K4me1', longer$category)] <- 'active'
 longer$panel[grepl('Pol2', longer$category)] <- 'RNA'
 longer$panel[grepl('ATAC', longer$category)] <- 'active'
 longer$panel[grepl('K27ac', longer$category)] <- 'active'
@@ -1720,7 +1722,7 @@ longer$activation[grepl('KA1h', longer$sample)] <- 'KA1h'
 longer$activation[grepl('KA48h', longer$sample)] <- 'KA48h'
 longer$activation[grepl('PTZ', longer$sample)] <- 'PTZ'
 
-## table(longer$category, longer$panel, longer$activation, useNA = 'ifany')
+table(longer$category, longer$panel, longer$activation, useNA = 'ifany')
 
 ```
 
