@@ -595,7 +595,7 @@ This is wrong because it's the wrong assembly!!
 
 
 ```{r}
-ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor'
+ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10'
 edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt'))
     
 edge_pos <- list()
@@ -1156,6 +1156,10 @@ meta <- read.csv(file.path(PUBLIC, 'GSE69806_caution_mm9_rmdup', 'sra_metadata_h
 covs_fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9_rmdup'),
     list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9_rmdup')), pattern = '.*bga.bedgraph.gz$'))
 
+## just randomly downsample four of them
+set.seed(646)
+covs_fns <- covs_fns[sample(1:length(covs_fns), 4, replace = FALSE)]
+
 covs <- list()
 for (fn in covs_fns) {
     ## if (DOWNSAMPLE) {
@@ -1208,7 +1212,7 @@ covs <- ScoreMatrixList(covs, bin.num = 50, cores = NTHREADS)
 
 
 
-```{r, fig.width = 24, fig.height = 6}
+```{r, fig.width = 10, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, covs),
                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 5)$cluster,
@@ -1219,7 +1223,7 @@ multiHeatMatrix(c(sml_with_cpg, covs),
                 cex.main = 0.3)
 ```
 
-```{r, fig.width = 24, fig.height = 6}
+```{r, fig.width = 10, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(covs)),
                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 5)$cluster,
@@ -1231,6 +1235,9 @@ multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(covs)),
 ```
 
 
+```{r}
+assign(gse, covs)
+```
 
 
 
