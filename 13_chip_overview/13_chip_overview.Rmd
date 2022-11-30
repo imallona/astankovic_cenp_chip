@@ -1135,7 +1135,7 @@ get(gse)
 
 <!-- # Plotting as stratified/facetted metaplots -->
 
-```{r meanswider, eval = TRUE, message = FALSE}
+```{r meanswider, eval = TRUE, message = FALSE, cache = FALSE}
 
 ## mat.list = lapply(foo, function(x) x@.Data)
 
@@ -1165,6 +1165,9 @@ longer <- list()
 for (samp in names(mat.list)) {
     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name)
     longer[[samp]] <- list()
+
+    mat.list[[samp]][ is.na(mat.list[[samp]]) ] <- 0
+    
     for (cl in unique(group.vector)) {
         ## cat(samp, ' ' , cl, '\n\n')
         tryCatch({
@@ -1194,7 +1197,7 @@ rm(mat.list)
 ```
 
 
-```{r}
+```{r, cache = FALSE}
 longer$category <- 'else'
 longer$category[grepl('cenp', longer$sample)] <- 'CENP'
 longer$category[grepl('ATAC', longer$sample)] <- 'ATAC'
@@ -1477,7 +1480,7 @@ assign(gse, covs)
 First, quality control, which are the clusters we're talking about (as stratified metaplots)?
 
 
-```{r, fig.width = 22, fig.height = 6}
+```{r, fig.width = 22, fig.height = 6, cache = FALSE}
 multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161),
                 xcoords = c(minx, maxx), clustfun = clu,
                 order = TRUE,
@@ -1487,10 +1490,13 @@ multiHeatMatrix(c(sml_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161),
                 cex.main = 0.3)
 ```
 
-```{r}
+```{r, cache = FALSE}
 ## mat.list = lapply(c(sml_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161), function(x) x@.Data)
 
-mat.list = lapply(intersectScoreMatrixList(c(sm, GSE125068, peaks, lung_liver_cenp, GSE21161), reorder = TRUE),
+
+
+
+mat.list = lapply(intersectScoreMatrixList(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161), reorder = TRUE),
                   function(x) x@.Data)
 
 names(mat.list) <- names(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161))
@@ -1498,10 +1504,14 @@ longer <- list()
 for (samp in names(mat.list)) {
     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name)
     longer[[samp]] <- list()
+
+    mat.list[[samp]][ is.na(mat.list[[samp]]) ] <- 0
+    
     for (cl in unique(group.vector)) {
         ## cat(samp, ' ' , cl, '\n\n')
         tryCatch({
-        idx <- group.vector == cl
+            idx <- group.vector == cl
+
         tmp <- colMeans(as.data.frame(val2unit(mat.list[[samp]][idx,])))
 
         cl <- paste0('cluster_', cl)
@@ -1528,7 +1538,7 @@ rm(mat.list)
 
 
 
-```{r}
+```{r, cache = FALSE}
 longer$category <- 'else'
 longer$category[grepl('cenp', longer$sample)] <- 'eg_CENP'
 longer$category[grepl('ATAC', longer$sample)] <- 'eg_ATAC'
@@ -1579,6 +1589,8 @@ longer$activation[grepl('KA6h', longer$sample)] <- 'KA6h'
 longer$activation[grepl('KA1h', longer$sample)] <- 'KA1h'
 longer$activation[grepl('KA48h', longer$sample)] <- 'KA48h'
 longer$activation[grepl('PTZ', longer$sample)] <- 'PTZ'
+longer$activation[grepl('NE', longer$sample)] <- 'NE'
+
 
 ## table(longer$category, longer$panel, longer$activation, useNA = 'ifany')
 
@@ -1594,7 +1606,7 @@ longer$activation[grepl('PTZ', longer$sample)] <- 'PTZ'
 
 ## Scaled, smoothed
 
-```{r, fig.width = 10, fig.height = 8}
+```{r, fig.width = 10, fig.height = 8, cache = FALSE}
 ## ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample)) +
 ##     geom_smooth(method = "loess") +
 ##     facet_grid(panel~cluster) +
@@ -1616,7 +1628,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 ## Scaled, not smoothed
 
-```{r, fig.width = 10, fig.height = 8} 
+```{r, fig.width = 10, fig.height = 8, cache = FALSE} 
 ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample, linetype = activation)) +
     geom_line() +
     facet_grid(panel~cluster) +
@@ -1631,7 +1643,7 @@ Finally, what if plotting the raw data? without min/max
 
 ## Raw, smoothed
 
-```{r}
+```{r, cache = FALSE}
 ## mat.list = lapply(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161), function(x) x@.Data)
 mat.list = lapply(intersectScoreMatrixList(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161), reorder = TRUE),
                   function(x) x@.Data)
@@ -1641,6 +1653,7 @@ longer <- list()
 for (samp in names(mat.list)) {
     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name)
     longer[[samp]] <- list()
+    mat.list[[samp]][ is.na(mat.list[[samp]]) ] <- 0
     for (cl in unique(group.vector)) {
         ## cat(samp, ' ' , cl, '\n\n')
         tryCatch({
@@ -1670,7 +1683,7 @@ rm(mat.list)
 ```
 
 
-```{r}
+```{r, cache = FALSE}
 longer$category <- 'else'
 longer$category[grepl('cenp', longer$sample)] <- 'eg_CENP'
 longer$category[grepl('ATAC', longer$sample)] <- 'eg_ATAC'
@@ -1721,6 +1734,7 @@ longer$activation[grepl('KA6h', longer$sample)] <- 'KA6h'
 longer$activation[grepl('KA1h', longer$sample)] <- 'KA1h'
 longer$activation[grepl('KA48h', longer$sample)] <- 'KA48h'
 longer$activation[grepl('PTZ', longer$sample)] <- 'PTZ'
+longer$activation[grepl('NE', longer$sample)] <- 'NE'
 
 table(longer$category, longer$panel, longer$activation, useNA = 'ifany')
 
@@ -1759,7 +1773,7 @@ table(longer$category, longer$panel, longer$activation, useNA = 'ifany')
 <!-- ``` -->
 
 
-```{r, fig.width = 10, fig.height = 8}
+```{r, fig.width = 10, fig.height = 8, cache = FALSE}
 
 ## ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample, linetype = activation)) +
 ##     geom_smooth(method = "loess", se = FALSE) +
@@ -1800,7 +1814,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 ## Raw, not smoothed
 
-```{r, fig.width = 10, fig.height = 8}
+```{r, fig.width = 10, fig.height = 8, cache = FALSE}
 ## ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample, linetype = activation)) +
 ##     geom_line() +
 ##     facet_grid(panel~cluster) +
