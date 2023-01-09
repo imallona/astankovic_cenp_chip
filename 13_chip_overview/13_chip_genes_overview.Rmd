@@ -173,7 +173,7 @@ mat.list = lapply(sml, function(x) x@.Data)
 
 clust.matrix = 1:4
 mat2 = do.call("cbind", mat.list[clust.matrix])
-clustfun = function(x) kmeans(x, centers = 3)$cluster
+clustfun = function(x) kmeans(x, centers = 2)$cluster
 
 set.seed(1)
 clu = clustfun(mat2)
@@ -207,7 +207,7 @@ multiHeatMatrix(sml_genes, xcoords = c(0, 100),
 ```{r, fig.width = 8, fig.height = 6} 
 set.seed(1)
 multiHeatMatrix(scaleScoreMatrixList(sml_genes),
-                xcoords = c(0, 100), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(0, 100), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 clust.matrix = 1:4)
 ```
@@ -234,7 +234,7 @@ multiHeatMatrix(sml, xcoords = c(minx, maxx),
 
 <!-- ```{r, fig.width = 8, fig.height = 6} -->
 <!-- multiHeatMatrix(sml, xcoords = c(minx, maxx), -->
-<!--                 clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 clust.matrix = 1:4, -->
 <!--                 col = c('lightgray', 'blue')) -->
@@ -247,7 +247,7 @@ multiHeatMatrix(sml, xcoords = c(minx, maxx),
 sml.scaled <- scaleScoreMatrixList(sml)
 set.seed(1)
 multiHeatMatrix(sml.scaled,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 clust.matrix = 1:4)
 ```
@@ -256,7 +256,7 @@ multiHeatMatrix(sml.scaled,
 
 <!-- ```{r, fig.width = 8, fig.height = 6} -->
 <!-- multiHeatMatrix(sml.scaled, xcoords = c(minx, maxx), -->
-<!--                 clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 clust.matrix = 1:4, -->
 <!--                 col = c('lightgray', 'blue')) -->
@@ -330,7 +330,7 @@ names(sml_genes_with_cpg)[length(names(sml_genes_with_cpg))] <- 'CpGi'
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 clust.matrix = 1:4)
 ```
@@ -341,7 +341,7 @@ multiHeatMatrix(sml_genes_with_cpg,
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 col = brewer.pal(15,"Blues"),
                 order = TRUE,
                 clust.matrix = 1:4)
@@ -352,7 +352,7 @@ multiHeatMatrix(sml_genes_with_cpg,
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4)
@@ -364,7 +364,7 @@ multiHeatMatrix(sml_genes_with_cpg,
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 winsorize = c(0,98),
                 order = TRUE,
                 col = brewer.pal(9,"Blues"),
@@ -376,7 +376,7 @@ multiHeatMatrix(sml_genes_with_cpg,
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 winsorize = c(0,98),
                 order = TRUE,
                 col = viridis(9),
@@ -536,7 +536,7 @@ mat.list = lapply(sml, function(x) x@.Data)
 
 clust.matrix = 1:4
 mat2 = do.call("cbind", mat.list[clust.matrix])
-clustfun = function(x) kmeans(x, centers = 3)$cluster
+clustfun = function(x) kmeans(x, centers = 2)$cluster
 
 set.seed(1)
 clu = clustfun(mat2)
@@ -664,7 +664,7 @@ Why doesn't this start from 0?
 ```{r, fig.width = 12, fig.height = 4}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, edge),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -675,7 +675,7 @@ multiHeatMatrix(c(sml_genes_with_cpg, edge),
 ```{r, fig.width = 12, fig.height = 4}
 set.seed(1)
 multiHeatMatrix(c(sml_genes, edge),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -819,7 +819,7 @@ Unscaled
 ```{r, fig.width = 14, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, bws),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -838,7 +838,7 @@ Scaled
 ```{r, fig.width = 14, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(bws)),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -898,7 +898,7 @@ peaks <- ScoreMatrixList(peaks,
 ```{r, fig.width = 22, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, peaks),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -911,7 +911,7 @@ multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, peaks),
 <!-- ```{r, fig.width = 22, fig.height = 6} -->
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, peaks), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = c(5, 20), -->
@@ -972,7 +972,7 @@ names(bws) <- paste0('cenp_liver_', names(bws))
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(bws)),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -1043,7 +1043,7 @@ curr <- ScoreMatrixList(curr, bin.num = 50, cores = NTHREADS)
 ```{r, fig.width = 24, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, curr),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
@@ -1056,7 +1056,7 @@ multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, curr),
 ```{r, fig.width = 28, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, curr),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 clust.matrix = 1:4,
                 col = brewer.pal(9,"Blues"),
@@ -1086,7 +1086,7 @@ group.vector = NULL
 
 clust.matrix = 1:4
 mat2 = do.call("cbind", mat.list[clust.matrix])
-clustfun = function(x) kmeans(x, centers = 3)$cluster
+clustfun = function(x) kmeans(x, centers = 2)$cluster
 
 set.seed(1)
 clu = clustfun(mat2)
@@ -1380,7 +1380,7 @@ Raw
 ```{r, fig.width = 10, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, covs),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 winsorize = c(1,99),
                 col = viridis(9),
@@ -1393,7 +1393,7 @@ Scaled
 ```{r, fig.width = 10, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(covs)),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster,
+                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
                 order = TRUE,
                 winsorize = c(1,99),
                 col = viridis(9),
@@ -1450,7 +1450,7 @@ rm(mat.list)
 
 
 ```{r}
-longer$category <- NA
+longer$category <- 'else'
 longer$category[grepl('cenp', longer$sample)] <- 'eg_CENP'
 longer$category[grepl('ATAC', longer$sample)] <- 'eg_ATAC'
 longer$category[grepl('K4me3', longer$sample)] <- 'eg_K4me3'
@@ -1504,7 +1504,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
     geom_smooth(method = "loess") +
     facet_grid(panel~cluster) +
     theme_bw() +
-    scale_x_discrete('distance to TSS (bp)',
+    scale_x_discrete('normalized position',
                      breaks = c(0, 50), labels = c('TSS', 'TES'), limits = c(0, 50)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -1513,7 +1513,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
     geom_smooth(method = "loess", se = FALSE) +
     facet_grid(panel~cluster) +
     theme_bw() +
-    scale_x_discrete('distance to TSS (bp)',
+    scale_x_discrete('normalized position',
                       breaks = c(0, 50), labels = c('TSS', 'TES'), limits = c(0, 50)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -1522,7 +1522,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
     geom_line() +
     facet_grid(panel~cluster) +
     theme_bw() +
-    scale_x_discrete('distance to TSS (bp)',
+    scale_x_discrete('normalized position',
                       breaks = c(0, 50), labels = c('TSS', 'TES'), limits = c(0, 50)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -1598,7 +1598,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, edge), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -1611,7 +1611,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(edge)), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -1628,7 +1628,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, edge), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = c(6:7, 1), -->
@@ -1696,7 +1696,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, edge), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -1711,7 +1711,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(edge)), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -1796,7 +1796,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 <!-- multiHeatMatrix(c(scaleScoreMatrixList(sml), -->
 <!--                   sm_cpgi_transcripts, -->
 <!--                   edge), -->
-<!--                 clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -1805,7 +1805,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 <!-- multiHeatMatrix(c(scaleScoreMatrixList(sml), -->
 <!--                   sm_cpgi_transcripts, -->
 <!--                   scaleScoreMatrixList(edge)), -->
-<!--                 clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -1873,7 +1873,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 <!-- curr[[3]] <- NULL ## has no intervals in the range -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, curr), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -1884,7 +1884,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 <!-- ```{r, fig.width = 30, fig.height = 6, cache = FALSE} -->
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161, curr), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -1897,7 +1897,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 <!-- ```{r, fig.width = 30, fig.height = 6} -->
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161, curr), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 clust.matrix = 1:4, -->
 <!--                 col = brewer.pal(9,"Blues"), -->
@@ -2000,7 +2000,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
     geom_smooth(method = "loess") +
     facet_grid(panel~cluster) +
     theme_bw() +
-    scale_x_discrete('distance to TSS (bp)',
+    scale_x_discrete('normalized position',
                      breaks = c(0, 25, 50), labels = c('TSS', 'mid', 'TES'), limits = c(0, 25, 50)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
@@ -2010,7 +2010,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
     geom_smooth(method = "loess", se = FALSE) +
     facet_grid(panel~cluster) +
     theme_bw() +
-    scale_x_discrete('distance to TSS (bp)',
+    scale_x_discrete('normalized position',
                      breaks = c(0, 25, 50), labels = c('TSS', 'mid', 'TES'), limits = c(0, 25, 50)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
@@ -2020,7 +2020,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
     geom_line() +
     facet_grid(panel~cluster) +
     theme_bw() +
-    scale_x_discrete('distance to TSS (bp)',
+    scale_x_discrete('normalized position',
                      breaks = c(0, 25, 50), labels = c('TSS', 'mid', 'TES'), limits = c(0, 25, 50)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
@@ -2082,7 +2082,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 
 <!-- curr[[3]] <- NULL ## has no intervals in the range -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, curr), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -2093,7 +2093,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 <!-- ```{r, fig.width = 30, fig.height = 6, cache = FALSE} -->
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161, curr), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 col = viridis(9), -->
 <!--                 clust.matrix = 1:4, -->
@@ -2106,7 +2106,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sampl
 <!-- ```{r, fig.width = 30, fig.height = 6} -->
 <!-- set.seed(1) -->
 <!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161, curr), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 3)$cluster, -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
 <!--                 order = TRUE, -->
 <!--                 clust.matrix = 1:4, -->
 <!--                 col = brewer.pal(9,"Blues"), -->

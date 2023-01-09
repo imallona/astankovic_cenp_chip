@@ -1040,6 +1040,109 @@ from vkorob/armor
 ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor'
 edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt'))
     
+edge_pos <- list()
+edge_neg <- list()
+for (fn in edge_fns) {
+    ## if (DOWNSAMPLE) {
+    ##     tmp <- readGeneric(pipe(sprintf('zcat %s | fgrep chr19', fn)),
+    ##                        header = FALSE, meta.col = list(cov = 4))
+    ## } else{
+    ##     tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4))
+    ## }
+
+    tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12,
+                                                          logCPM = 13, F = 14, pval = 15, padj = 16))
+
+    seqlevelsStyle(tmp) <- "UCSC"
+    if (DOWNSAMPLE) {
+         seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    } else {
+        
+        seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, allowed_chr, pruning.mode="coarse")
+        
+    }
+    
+    edge_pos[[paste0(fn, '_up')]] <- tmp[tmp$logFC >= 0]
+    edge_neg[[paste0( fn, '_down')]] <- tmp[tmp$logFC < 0]
+
+    ## swap logFC to be in the positive range
+    edge_neg[[paste0( fn, '_down')]]$logFC <- abs(edge_neg[[paste0( fn, '_down')]]$logFC)
+    
+    rm(tmp)
+}
+
+names(edge_pos) <-  gsub('edgeR_dge_results_', '', basename(names(edge_pos)))
+names(edge_neg) <-  gsub('edgeR_dge_results_', '', basename(names(edge_neg)))
+
+
+## the weight col is the metadata one
+## edge_sm <- ScoreMatrixList(edge, genes_proms, bin.num = 50, weight.col = 'logFC')
+
+
+edge_sm <- lapply(c(edge_pos, edge_neg),
+                  function(x) ScoreMatrixBin(x, genes_proms,
+                                             is.noCovNA = TRUE,
+                                             bin.num = 50,
+                                             type = "auto",  strand.aware = TRUE))
+
+
+
+edge <- ScoreMatrixList(edge_sm, bin.num = 50, cores = NTHREADS)
+```
+
+
+```{r, fig.width = 15, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, edge),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.1)
+
+```
+
+
+```{r, fig.width = 15, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(edge)),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.1)
+
+```
+
+That's way to weird, why are the signals outside the -2 +1 ?
+
+Anyway, cluster (unscaled) according to the diff expression of one contrast, and then one cenp only
+
+
+```{r, fig.width = 20, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, edge),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = c(6:7, 1),
+                cex.main = 0.25)
+
+```
+
+Weird, are we using the same coords? let's try the logcpm, just in case
+
+
+```{r}
+# imlstaupo ln -s /home/vkorob/scRNAseq_GSE125068/output/outputR/ ; in shared armor_GSE125068_out
+ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor'
+edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt'))
+    
 edge <- list()
 for (fn in edge_fns) {
     ## if (DOWNSAMPLE) {
@@ -1053,47 +1156,42 @@ for (fn in edge_fns) {
                                                           logCPM = 13, F = 14, pval = 15, padj = 16))
 
     seqlevelsStyle(tmp) <- "UCSC"
-    if (DOWNSAMPLE) {        
+    if (DOWNSAMPLE) {
+         seqlevelsStyle(tmp) <- 'UCSC'
         tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    } else {
+        
+        seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, allowed_chr, pruning.mode="coarse")
+        
     }
     
     edge[[fn]] <- tmp
+    
     rm(tmp)
 }
 
-names(edge) <-  gsub('edgeR_dge_results_', '', basename(edge_fns))
-
-
-if (DOWNSAMPLE){
-    for (item in names(edge)) {
-        seqlevelsStyle(edge[[item]]) <- 'UCSC'
-
-        edge[[item]] <- keepSeqlevels(edge[[item]], "chr19", pruning.mode="coarse")
-    }
-} else {
-        for (item in names(edge)) {
-        seqlevelsStyle(edge[[item]]) <- 'UCSC'
-
-        edge[[item]] <- keepSeqlevels(edge[[item]], allowed_chr, pruning.mode="coarse")
-    }
-}
-
-
+names(edge_pos) <-  gsub('edgeR_dge_results_', '', basename(names(edge_pos)))
+names(edge_neg) <-  gsub('edgeR_dge_results_', '', basename(names(edge_neg)))
 
 
 ## the weight col is the metadata one
 ## edge_sm <- ScoreMatrixList(edge, genes_proms, bin.num = 50, weight.col = 'logFC')
 
 
-edge_sm <- lapply(edge, function(x) ScoreMatrixBin(x, genes_proms,
-                                                is.noCovNA = TRUE,
-                                                bin.num = 50,
-                                                type = "auto",  strand.aware = TRUE))
+edge_sm <- lapply(c(edge),
+                  function(x) ScoreMatrixBin(x, genes_proms,
+                                             is.noCovNA = TRUE,
+                                             bin.num = 50,
+                                             type = "auto",  strand.aware = TRUE))
 
 
 
 edge <- ScoreMatrixList(edge_sm, bin.num = 50, cores = NTHREADS)
+```
 
+
+```{r, fig.width = 15, fig.height = 8}
 
 set.seed(1)
 multiHeatMatrix(c(sml_with_cpg, edge),
@@ -1101,14 +1199,118 @@ multiHeatMatrix(c(sml_with_cpg, edge),
                 order = TRUE,
                 col = viridis(9),
                 clust.matrix = 1:4,
-                cex.main = 0.7)
+                cex.main = 0.3)
+
+
+```
+
+And scaled
+
+```{r, fig.width = 15, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(c(sml_with_cpg, scaleScoreMatrixList(edge)),
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.3)
+
+
+```
+
+I don't think this is correct, maybe because of the promoter-plotting? let's check transcripts out of curiosity? and flank 3k each side
+
+
+```{r}
+
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+wtranscripts <- flank(transcripts(txdb), 3000)
+
+
+if (DOWNSAMPLE) {
+    wtranscripts <-  keepSeqlevels(wtranscripts, "chr19", pruning.mode="coarse")
+} else {
+    wtranscripts <-  keepSeqlevels(wtranscripts, allowed_chr, pruning.mode="coarse")
+}
+
+## wtranscripts$symbol <- mapIds(org.Mm.eg.db,
+##                            keys = wtranscripts$gene_id,
+##                            column = "SYMBOL",
+##                            keytype = "ENTREZID",
+##                            multiVals = "first")
 
 ```
 
 
 ```{r}
+covs_fns <- file.path(BEDGRAPHS, list.files(BEDGRAPHS, pattern = '.*bga.bedgraph.gz$'))
+
+covs <- lapply(covs_fns, function(x) readGeneric(x, header = TRUE, meta.col = list(cov = 4)))
+
+names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(covs_fns))
+
+if (DOWNSAMPLE) {
+    for (item in names(covs)) {
+        covs[[item]] <- keepSeqlevels(covs[[item]], "chr19", pruning.mode="coarse")
+    }
+} else {
+    for (item in names(covs)) {
+        covs[[item]] <- keepSeqlevels(covs[[item]], allowed_chr, pruning.mode="coarse")
+    }
+}
 
 ```
+
+
+Rename sample swaps!!!
+
+```{r}
+
+names(covs)
+names(covs) <- c('cenp_HC_1', 'cenp_PTZ_23', 'cenp_PTZ_1', 'cenp_HC_23')
+names(covs)
+
+covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')]
+```
+
+```{r}
+## ?ScoreMatrix
+sml <- ScoreMatrixList(covs, wtranscripts, bin.num = 50, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
+                       is.noCovNA = TRUE)
+```
+
+
+```{r, fig.width = 20, fig.height = 8}
+
+sm_cpgi_transcripts <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
+                                windows = wtranscripts, strand.aware = TRUE,
+                                bin.num = 50)
+
+
+names(edge) <- gsub('edgeR_dge_results_', '', basename(names(edge)))
+names(edge) <- gsub('treatment_', '', names(edge))
+
+multiHeatMatrix(c(scaleScoreMatrixList(sml),
+                  sm_cpgi_transcripts,
+                  edge),
+                clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.5)
+
+multiHeatMatrix(c(scaleScoreMatrixList(sml),
+                  sm_cpgi_transcripts,
+                  scaleScoreMatrixList(edge)),
+                clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                order = TRUE,
+                col = viridis(9),
+                clust.matrix = 1:4,
+                cex.main = 0.5)
+```
+
 
 ## till here
 
