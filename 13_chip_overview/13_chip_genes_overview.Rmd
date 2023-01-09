@@ -54,7 +54,7 @@ DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
 PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
 
 ## if downsampled, only chr19
-DOWNSAMPLE <- TRUE
+DOWNSAMPLE <- FALSE
 
 BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
 ```
@@ -67,33 +67,26 @@ txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
 minx <- -0
 maxx <- 1
 
-all_proms <- promoters(txdb, upstream = 2000, downstream = 2000)
+## all_proms <- promoters(txdb, upstream = 2000, downstream = 2000)
 
-genes_proms <- promoters(genes(txdb), upstream = 2000, downstream = 2000)
+## genes_proms <- promoters(genes(txdb), upstream = 2000, downstream = 2000)
 
 genes_asis <- genes(txdb)
 
-tsss <- resize(transcripts(txdb), width = 1, fix = 'start')
+## tsss <- resize(transcripts(txdb), width = 1, fix = 'start')
 
 allowed_chr <- paste0('chr', c(1:19, 'X'))
 
 if (DOWNSAMPLE) {
-    all_proms <- keepSeqlevels(all_proms, "chr19", pruning.mode="coarse")
-    genes_proms <- keepSeqlevels(genes_proms, "chr19", pruning.mode="coarse")
-    tsss <-  keepSeqlevels(tsss, "chr19", pruning.mode="coarse")
+    ## all_proms <- keepSeqlevels(all_proms, "chr19", pruning.mode="coarse")
+    ## genes_proms <- keepSeqlevels(genes_proms, "chr19", pruning.mode="coarse")
+    ## tsss <-  keepSeqlevels(tsss, "chr19", pruning.mode="coarse")
     genes_asis <-  keepSeqlevels(genes_asis, "chr19", pruning.mode="coarse")
 } else {
-    all_proms <- keepSeqlevels(all_proms, allowed_chr, pruning.mode="coarse")
-    genes_proms <- keepSeqlevels(genes_proms, allowed_chr, pruning.mode="coarse")
-    tsss <-  keepSeqlevels(tsss, allowed_chr, pruning.mode="coarse")
+    ## all_proms <- keepSeqlevels(all_proms, allowed_chr, pruning.mode="coarse")
+    ## genes_proms <- keepSeqlevels(genes_proms, allowed_chr, pruning.mode="coarse")
+    ## tsss <-  keepSeqlevels(tsss, allowed_chr, pruning.mode="coarse")
     genes_asis <-  keepSeqlevels(genes_asis, allowed_chr,  pruning.mode="coarse")
-}
-
-## test to remove overlaps
-for (item in c('all_proms', 'genes_proms', 'tsss', 'genes_asis')) {
-    gr <- get(item)
-    gr <- gr[countOverlaps(gr, gr) <= 1L]
-    assign(x = item, value = gr)
 }
 
 
@@ -103,23 +96,46 @@ for (item in c('all_proms', 'genes_proms', 'tsss', 'genes_asis')) {
 Overlapping genes/features removed!
 
 ```{r}
-genes_proms$symbol <- mapIds(org.Mm.eg.db,
-                           keys = genes_proms$gene_id,
-                           column = "SYMBOL",
-                           keytype = "ENTREZID",
-                           multiVals = "first")
+## genes_proms$symbol <- mapIds(org.Mm.eg.db,
+##                            keys = genes_proms$gene_id,
+##                            column = "SYMBOL",
+##                            keytype = "ENTREZID",
+##                            multiVals = "first")
 
-genes_proms$ensembl <- mapIds(org.Mm.eg.db,
-                              keys = genes_proms$gene_id,
-                              column = "ENSEMBL",
-                              keytype = "ENTREZID",
-                              multiVals = "first")
+## genes_proms$ensembl <- mapIds(org.Mm.eg.db,
+##                               keys = genes_proms$gene_id,
+##                               column = "ENSEMBL",
+##                               keytype = "ENTREZID",
+##                               multiVals = "first")
 
 genes_asis$ensembl <- mapIds(org.Mm.eg.db,
                               keys = genes_asis$gene_id,
                               column = "ENSEMBL",
                               keytype = "ENTREZID",
                               multiVals = "first")
+```
+
+Resize genes_asis with 10% up and downstream
+
+```{r}
+genes_asis
+
+genes_asis <- trim(resize(genes_asis, width = width(genes_asis)*1.20, fix = "center"))
+genes_asis
+
+
+```
+
+Remove overlaps
+
+```{r}
+## test to remove overlaps
+for (item in 'genes_asis') { # c('all_proms', 'genes_proms', 'tsss', 'genes_asis')) {
+    gr <- get(item)
+    gr <- gr[countOverlaps(gr, gr) <= 1L]
+    assign(x = item, value = gr)
+}
+
 ```
 
 ```{r coverages_load}
@@ -139,13 +155,11 @@ if (DOWNSAMPLE) {
         covs[[item]] <- keepSeqlevels(covs[[item]], allowed_chr, pruning.mode="coarse")
     }
 }
-
 ```
 
 Rename sample swaps!!!
 
 ```{r}
-
 names(covs)
 names(covs) <- c('cenp_HC_1', 'cenp_PTZ_23', 'cenp_PTZ_1', 'cenp_HC_23')
 names(covs)
@@ -153,116 +167,77 @@ names(covs)
 covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')]
 ```
 
+Remove two replicates (will go to suplementary)
+
+```{r}
+
+covs[['cenp_HC_23']] <- NULL
+covs[['cenp_PTZ_23']] <- NULL
+```
+
 ```{r}
 sml_genes <- ScoreMatrixList(covs, genes_asis,
-                             bin.num = 50, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
-                       is.noCovNA = TRUE)
+                             bin.num = 100, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
+                             is.noCovNA = TRUE)
 ```
 
+
 ```{r}
-## ?ScoreMatrix
-sml <- ScoreMatrixList(covs, genes_proms, bin.num = 50, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
-                       is.noCovNA = TRUE)
+NUM_CLUSTERS <- 5
 ```
 
-```{r}
 
+```{r}
 ## we cluster once on CENPA-in-house-only, and reuse that for plotting across datasets
-mat.list = lapply(sml, function(x) x@.Data)
+mat.list = lapply(sml_genes, function(x) x@.Data)
     group.vector = NULL
 
-clust.matrix = 1:4
+clust.matrix = 1:2
 mat2 = do.call("cbind", mat.list[clust.matrix])
-clustfun = function(x) kmeans(x, centers = 2)$cluster
+clustfun = function(x) kmeans(x, centers = NUM_CLUSTERS)$cluster
 
 set.seed(1)
 clu = clustfun(mat2)
 
+mat.list.genes <- mat.list
+rm( mat2, mat.list)
+
+```
+
+```{r}
+
+sml_genes_scaled <- scaleScoreMatrixList(sml_genes)
+
+mat.list = lapply(sml_genes_scaled, function(x) x@.Data)
+    group.vector = NULL
+
+clust.matrix = 1:2
+mat2 = do.call("cbind", mat.list[clust.matrix])
+clustfun = function(x) kmeans(x, centers = NUM_CLUSTERS)$cluster
+
+set.seed(1)
+clu_scaled = clustfun(mat2)
+
+mat.list.genes.scaled <- mat.list
 rm(mat.list, mat2)
 ```
 
 
-# Original data
+# Stankovic data
 
 ## Heatmaps genes ,sample swap corrected {.tabset .tabset-pills}
 
+### Nonscaled   {.tabset .tabset-pills}
 
-### No scaling, original
-
-```{r noscaling_genes, fig.width = 8, fig.height = 6}
-
-set.seed(1)
-## ?multiHeatMatrix
-
-
-multiHeatMatrix(sml_genes, xcoords = c(0, 100),
-                clustfun = clu,
-                order = TRUE,
-                clust.matrix = 1:4)
-
-```
-
-### Scaled, original
-
-```{r, fig.width = 8, fig.height = 6} 
-set.seed(1)
-multiHeatMatrix(scaleScoreMatrixList(sml_genes),
-                xcoords = c(0, 100), clustfun = function(x) kmeans(x, centers = 2)$cluster,
-                order = TRUE,
-                clust.matrix = 1:4)
-```
-
-
-## Heatmaps promoter CENP data, sample swap corrected {.tabset .tabset-pills}
-
-### No scaling, original
+#### Original
 
 ```{r noscaling, fig.width = 8, fig.height = 6}
-
 set.seed(1)
-## ?multiHeatMatrix
-
-
-multiHeatMatrix(sml, xcoords = c(minx, maxx),
+multiHeatMatrix(sml_genes, xcoords = c(0, 100),
                 clustfun = clu,
-                order = TRUE,
-                clust.matrix = 1:4)
+                order = TRUE)
 
 ```
-
-<!-- ### No scaling, blues -->
-
-<!-- ```{r, fig.width = 8, fig.height = 6} -->
-<!-- multiHeatMatrix(sml, xcoords = c(minx, maxx), -->
-<!--                 clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
-<!--                 order = TRUE, -->
-<!--                 clust.matrix = 1:4, -->
-<!--                 col = c('lightgray', 'blue')) -->
-<!-- ``` -->
-
-
-### Scaled, original
-
-```{r, fig.width = 8, fig.height = 6}
-sml.scaled <- scaleScoreMatrixList(sml)
-set.seed(1)
-multiHeatMatrix(sml.scaled,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
-                order = TRUE,
-                clust.matrix = 1:4)
-```
-
-<!-- ### Scaled, blues -->
-
-<!-- ```{r, fig.width = 8, fig.height = 6} -->
-<!-- multiHeatMatrix(sml.scaled, xcoords = c(minx, maxx), -->
-<!--                 clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
-<!--                 order = TRUE, -->
-<!--                 clust.matrix = 1:4, -->
-<!--                 col = c('lightgray', 'blue')) -->
-<!-- ``` -->
-
-### With CpG islands, scaled
 
 
 ```{r, fig.width = 8, fig.height = 6}
@@ -284,15 +259,14 @@ if (DOWNSAMPLE) {
 
 
 ```{r, fig.width = 8, fig.height = 6}
-
 sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
-                          windows = genes_proms, strand.aware = TRUE,
-                          bin.num = 50)
+                          windows = genes_asis, strand.aware = TRUE,
+                          bin.num = 100)
 
 
 
-sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
-                                genes_proms, bin.num = 50,
+sml_genes_with_cpg <- ScoreMatrixList(c(sml_genes, sm_cpgi),
+                                genes_asis, bin.num = 100,
                                 strand.aware = TRUE,
                                 cores = NTHREADS)
 
@@ -301,88 +275,181 @@ sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
 ##                                 strand.aware = TRUE,
 ##                                 cores = NTHREADS)
 
-names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
-```
-
-
-```{r, fig.width = 8, fig.height = 6}
-
-sm_genes_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
-                          windows = genes_asis, strand.aware = TRUE,
-                          bin.num = 50)
-
-
-print("check if we're double scaling!")
-## sml_genes_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
-##                                 genes_asis, bin.num = 50,
-##                                 strand.aware = TRUE,
-##                                 cores = NTHREADS)
-
-sml_genes_with_cpg <- ScoreMatrixList(c(scaleScoreMatrixList(sml_genes), sm_genes_cpgi),
-                                genes_asis, bin.num = 50,
-                                strand.aware = TRUE,
-                                cores = NTHREADS)
-
 names(sml_genes_with_cpg)[length(names(sml_genes_with_cpg))] <- 'CpGi'
 ```
 
 
-```{r, fig.width = 8, fig.height = 6}
-set.seed(1)
-multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
-                order = TRUE,
-                clust.matrix = 1:4)
+```{r}
+sml_genes_scaled_with_cpg <- ScoreMatrixList(c(sml_genes_scaled, sm_cpgi),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS)
+
+## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
+##                                 genes_proms, bin.num = 50,
+##                                 strand.aware = TRUE,
+##                                 cores = NTHREADS)
+
+names(sml_genes_scaled_with_cpg)[length(names(sml_genes_scaled_with_cpg))] <- 'CpGi'
 ```
 
 
-### CpGi, scaled, blues
+
+### CpGi
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                clustfun = clu,
+                order = TRUE)
+```
+
+
+### CpGi,  blues
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                clustfun = clu,
                 col = brewer.pal(15,"Blues"),
-                order = TRUE,
-                clust.matrix = 1:4)
+                order = TRUE)
 ```
 
-### CpGi, scaled, viridis
+### CpGi,  viridis
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                clustfun = clu,
                 order = TRUE,
-                col = viridis(9),
-                clust.matrix = 1:4)
+                col = viridis(9))
 
 ```
 
-### CpGi, scaled, winsorized
+### CpGi, winsorized, blues
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
-                winsorize = c(0,98),
+                xcoords = c(minx, maxx), clustfun = clu,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                winsorize = c(1,99),
                 order = TRUE,
-                col = brewer.pal(9,"Blues"),
-                clust.matrix = 1:4)
+                col = brewer.pal(5,"Blues"))
 ```
 
-### CpGi, scaled, winsorized, viridis
+### CpGi,  winsorized, viridis
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
-                winsorize = c(0,98),
+                xcoords = c(minx, maxx),
+                clustfun = clu,
+                winsorize = c(1,99),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
                 order = TRUE,
-                col = viridis(9),
-                clust.matrix = 1:4)
+                col = viridis(9))
 
 ```
+
+### Scaled   {.tabset .tabset-pills}
+
+
+#### Original
+
+```{r noscaling_genes, fig.width = 8, fig.height = 6}
+
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled, xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                clustfun = clu,                
+                order = TRUE)
+
+```
+
+
+### CpGi
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                clustfun = clu,  
+                xcoords = c(minx, maxx),
+                order = TRUE)
+```
+
+
+### CpGi,  blues
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                clustfun = clu,
+                col = brewer.pal(15,"Blues"),
+                order = TRUE)
+```
+
+### CpGi,  viridis
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                clustfun = clu,
+                order = TRUE,
+                col = viridis(9))
+
+```
+
+### CpGi, winsorized, blues
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                xcoords = c(minx, maxx), clustfun = clu,
+                winsorize = c(1,99),
+                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE,
+                col = brewer.pal(5,"Blues"))
+```
+
+### CpGi,  winsorized, viridis
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                xcoords = c(minx, maxx),
+                clustfun = clu,
+                winsorize = c(1,99),
+                order = TRUE,
+                col = viridis(9))
+
+```
+
+
+
 
 ## Metaplots {.tabset .tabset-pills}
 
@@ -409,18 +476,91 @@ plotMeta(sml_genes, profile.names = names(sml_genes),
 ```
 
 
-### Raw, with dispersions
+### With CpGi, rescaled, with dispersions
 
 ```{r, fig.width = 5, fig.height = 4}
 par(pty = 's')
 plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
-         meta.rescale = FALSE,
+         meta.rescale = TRUE,
          lwd = 2,
          smoothfun = NULL,
                   centralTrend = 'mean',
          dispersion = 'se',
          xcoords = c(minx, maxx))
 ```
+
+
+
+Test start to attempto to plotMeta on slices
+
+```{r, fig.width = 6, fig.height = 4}
+
+
+
+chopped <- list()
+
+for (i in sort(unique(clu))) {
+    print(i)
+    chopped[[as.character(i)]] <- list()
+    
+    for (id in names(sml_genes)) {
+        chopped[[as.character(i)]][[id]] <- sml_genes[[id]]
+
+        if (sum(clu == i) > 1) {
+            
+            chopped[[as.character(i)]][[id]]@.Data <- sml_genes[[id]]@.Data[clu == i,]
+        }
+        else {
+            ## chopped[[as.character(i)]][[id]]@dimnames[[1]] <- 1:2
+            tmp <- as.matrix(
+                rbind(sml_genes[[id]]@.Data[clu == i,],
+                      sml_genes[[id]]@.Data[clu == i,]))
+
+            tmp[1,] <- rep(NA, ncol(tmp))
+            dimnames(tmp)[[1]] <- 1:2
+            chopped[[as.character(i)]][[id]]@.Data <- tmp
+        }
+        
+    }
+}
+
+
+
+par(mfrow = c(2,3),  pty = 's')
+for (i in names(chopped)) {
+    plotMeta(ScoreMatrixList(chopped[[i]]),
+             profile.names = names(sml_genes),
+             line.col = c('blue', 'black'), #, 'forestgreen'),
+             meta.rescale = TRUE,
+             lwd = 2,
+             smoothfun = function(x) stats::lowess(x, f = 1/10),
+             xcoords = c(minx, maxx),
+             main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)),
+             xaxt='n',
+             xlab = 'location')
+
+    axis(1, at = c(0.1, 0.9), labels = c('TSS', 'TES'))
+}
+
+par(mfrow = c(2,3),  pty = 's')
+for (i in names(chopped)) {
+    plotMeta(ScoreMatrixList(chopped[[i]]),
+             profile.names = names(sml_genes),
+             line.col = c('blue', 'black'), #, 'forestgreen'),
+             meta.rescale = TRUE,
+             lwd = 2,
+             smoothfun = NULL,
+             xcoords = c(minx, maxx),
+             main = sprintf('raw signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)),
+             xaxt='n',
+             xlab = 'location')
+
+    axis(1, at = c(0.1, 0.9), labels = c('TSS', 'TES'))
+}
+
+```
+
+Test end
 
 <!-- ### Rescaled, dispersions, lowess -->
 
@@ -436,7 +576,7 @@ plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
 <!--          xcoords = c(minx, maxx)) -->
 <!-- ``` -->
 
-### Rescaled
+### Rescaled, raw
 
 ```{r, fig.width = 5, fig.height = 4}
 par(pty = 's')
@@ -465,7 +605,7 @@ plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
 par(pty = 's')
 plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
          meta.rescale = TRUE,
-         smoothfun = function(x) stats::lowess(x, f = 1/3),
+         smoothfun = function(x) stats::lowess(x, f = 1/10),
          lwd = 2,
          xcoords = c(minx, maxx))
 ```
@@ -525,37 +665,22 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
 
 # Export gene names by cluster
 
-Not done here, this should be done for promoters - only
+Not done here, this should be done for promoters - only (right?)
 
 
+# Custom plots
 
 ```{r attemptmeans, eval = TRUE}
- 
-mat.list = lapply(sml, function(x) x@.Data)
-    group.vector = NULL
 
-clust.matrix = 1:4
-mat2 = do.call("cbind", mat.list[clust.matrix])
-clustfun = function(x) kmeans(x, centers = 2)$cluster
-
-set.seed(1)
-clu = clustfun(mat2)
-
-group.vector = clu
-## str(mat.list)
-## mat.list = lapply(mat.list, function(x) split(x = x, f = group.vector))
-
-## head(mat.list[[1]])
-## head(clu)
-
+group.vector <- clu
 longer <- list()
 
-for (samp in names(mat.list)) {
-    ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name)
+for (samp in names(mat.list.genes)) {
+    ## table(tidyr::pivot_longer(data = as.data.frame(mat.list.genes[[samp]]), cols = 1:ncol(mat.list.genes[[samp]]))$name)
     longer[[samp]] <- list()
     for (cl in unique(group.vector)) {
-        idx <- rownames(as.data.frame(mat.list[[samp]]))[group.vector == cl]
-        tmp <- colMeans(as.data.frame(mat.list[[samp]][idx,]))
+        idx <- rownames(as.data.frame(mat.list.genes[[samp]]))[group.vector == cl]
+        tmp <- colMeans(as.data.frame(mat.list.genes[[samp]][idx,]))
 
         tmp <- data.frame(value = tmp,
                           pos = names(tmp),
@@ -568,12 +693,13 @@ for (samp in names(mat.list)) {
      longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]])
 }
 
+
 longer <- do.call(rbind.data.frame, longer)
 
 longer$pos <- as.numeric(gsub('V', '', longer$pos))
 longer$value[is.na(longer$value)] <- 0
-rm(mat.list)
 
+head(longer)
 ```
 
 
@@ -585,6 +711,7 @@ ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
     geom_smooth(method = "loess") +
     facet_wrap(~ cluster) +
     theme(aspect.ratio=1) +
+    theme_bw() +
     scale_x_discrete(limits = c(-2000, 1e3)) +
     xlab('nucleotides from TSS')
     
@@ -593,9 +720,9 @@ ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
 
 
 ```{r}
-print('From now on, we check genes!')
-
+knitr::knit_exit()
 ```
+
 
 # Add data
 
@@ -605,14 +732,17 @@ This is wrong because it's the wrong assembly!! Vlad is aware and fixing this.
 
 
 ```{r}
-ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor'
+ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10'
 edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt'))
     
 edge_pos <- list()
 edge_neg <- list()
 for (fn in edge_fns) {
-    tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12,
-                                                          logCPM = 13, F = 14, pval = 15, padj = 16))
+    ## tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12,
+    ##                                                       logCPM = 13, F = 14, pval = 15, padj = 16))
+
+    tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 9,
+                                                          logCPM = 10, F = 11, pval = 12, padj = 13))
 
     ## tmp <- tmp[tmp$padj < 0.05,]
 
@@ -636,9 +766,9 @@ for (fn in edge_fns) {
     rm(tmp)
 }
 
-names(edge_pos) <-  gsub('.txt_up', '',
+names(edge_pos) <-  gsub('.txt_up', '_up',
                          gsub('treatment', '', gsub('edgeR_dge_results_', '', basename(names(edge_pos)))))
-names(edge_neg) <-   gsub('.txt_down', '',
+names(edge_neg) <-   gsub('.txt_down', '_down',
                          gsub('treatment', '', gsub('edgeR_dge_results_', '', basename(names(edge_neg)))))
 
 
@@ -648,27 +778,61 @@ names(edge_neg) <-   gsub('.txt_down', '',
 
 edge_sm <- lapply(c(edge_pos, edge_neg),
                   function(x) ScoreMatrixBin(x, genes_asis,
-                                             is.noCovNA = TRUE,
-                                             bin.num = 50,
+                                             is.noCovNA = FALSE,
+                                             bin.num = 100,
                                              type = "auto",  strand.aware = TRUE,
                                              weight.col = 'logFC'))
 
 
 
-edge <- ScoreMatrixList(edge_sm, bin.num = 50, cores = NTHREADS)
+edge <- ScoreMatrixList(edge_sm, bin.num = 100, cores = NTHREADS)
+
 ```
 
 
 Why doesn't this start from 0?
 
 ```{r, fig.width = 12, fig.height = 4}
+
+report_clustering <- function(clu) {
+    return(clu)
+    
+}
+
+
+## ?multiHeatMatrix
+table(clu)
+set.seed(1)
+multiHeatMatrix(c(edge),
+                xcoords = c(minx, maxx),
+                clustfun = clu,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                order = TRUE,
+                user.order = 1:5,
+                col = viridis(9),
+                cex.main = 0.6)
+
+set.seed(1)
+
+multiHeatMatrix(c(edge),
+                order = TRUE,
+                clustfun = clu,
+                user.order = 1:5,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                col = viridis(9),
+                cex.main = 0.6)
+
+
 set.seed(1)
 multiHeatMatrix(c(sml_genes_with_cpg, edge),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
+                xcoords = c(minx, maxx),
+                clustfun = as.numeric(clu),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
                 order = TRUE,
                 col = viridis(9),
-                clust.matrix = 1:4,
                 cex.main = 0.5)
+
 ```
 
 
