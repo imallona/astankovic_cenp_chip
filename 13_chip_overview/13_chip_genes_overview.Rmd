@@ -33,6 +33,7 @@ suppressPackageStartupMessages({
     library(ggplot2)
     library(dplyr)
     library(ChIPpeakAnno)
+    library(tidyr)
 })
 ```
 
@@ -176,14 +177,14 @@ covs[['cenp_PTZ_23']] <- NULL
 ```
 
 ```{r}
-sml_genes <- ScoreMatrixList(covs, genes_asis,
+sml_genes <- ScoreMatrixList(covs, windows = genes_asis,
                              bin.num = 100, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
                              is.noCovNA = TRUE)
 ```
 
 
 ```{r}
-NUM_CLUSTERS <- 5
+NUM_CLUSTERS <- 3
 ```
 
 
@@ -264,11 +265,12 @@ sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
                           bin.num = 100)
 
 
-
-sml_genes_with_cpg <- ScoreMatrixList(c(sml_genes, sm_cpgi),
+stop('here the intersectscorematrixlist needs chcks')
+sml_genes_with_cpg <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes, sm_cpgi),
                                 genes_asis, bin.num = 100,
                                 strand.aware = TRUE,
-                                cores = NTHREADS)
+                                cores = NTHREADS),
+                                reorder = TRUE)
 
 ## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
 ##                                 genes_proms, bin.num = 50,
@@ -295,7 +297,7 @@ names(sml_genes_scaled_with_cpg)[length(names(sml_genes_scaled_with_cpg))] <- 'C
 
 
 
-### CpGi
+#### CpGi
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -308,7 +310,7 @@ multiHeatMatrix(sml_genes_with_cpg,
 ```
 
 
-### CpGi,  blues
+#### CpGi,  blues
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -321,7 +323,7 @@ multiHeatMatrix(sml_genes_with_cpg,
                 order = TRUE)
 ```
 
-### CpGi,  viridis
+#### CpGi,  viridis
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -335,7 +337,7 @@ multiHeatMatrix(sml_genes_with_cpg,
 
 ```
 
-### CpGi, winsorized, blues
+#### CpGi, winsorized, blues
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -348,7 +350,7 @@ multiHeatMatrix(sml_genes_with_cpg,
                 col = brewer.pal(5,"Blues"))
 ```
 
-### CpGi,  winsorized, viridis
+#### CpGi,  winsorized, viridis
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -366,7 +368,7 @@ multiHeatMatrix(sml_genes_with_cpg,
 ### Scaled   {.tabset .tabset-pills}
 
 
-#### Original
+#### As-is
 
 ```{r noscaling_genes, fig.width = 8, fig.height = 6}
 
@@ -380,7 +382,7 @@ multiHeatMatrix(sml_genes_scaled, xcoords = c(minx, maxx),
 ```
 
 
-### CpGi
+#### CpGi
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -393,7 +395,7 @@ multiHeatMatrix(sml_genes_scaled_with_cpg,
 ```
 
 
-### CpGi,  blues
+#### CpGi,  blues
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -406,7 +408,7 @@ multiHeatMatrix(sml_genes_scaled_with_cpg,
                 order = TRUE)
 ```
 
-### CpGi,  viridis
+#### CpGi,  viridis
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -420,7 +422,7 @@ multiHeatMatrix(sml_genes_scaled_with_cpg,
 
 ```
 
-### CpGi, winsorized, blues
+#### CpGi, winsorized, blues
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -433,7 +435,7 @@ multiHeatMatrix(sml_genes_scaled_with_cpg,
                 col = brewer.pal(5,"Blues"))
 ```
 
-### CpGi,  winsorized, viridis
+#### CpGi,  winsorized, viridis
 
 ```{r, fig.width = 8, fig.height = 6}
 set.seed(1)
@@ -490,12 +492,171 @@ plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
 ```
 
 
-
-Test start to attempto to plotMeta on slices
-
-```{r, fig.width = 6, fig.height = 4}
+## Stratified metaplots without CpG islands {.tabset .tabset-pills}
 
 
+
+### Stratified / no val2unit / mean
+
+
+```{r, fig.width = 10, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(sml_genes,
+                xcoords = c(minx, maxx), clustfun = clu,
+                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE)
+
+set.seed(1)
+test <- lapply(sml_genes, function(x) return(x@.Data))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+
+    fd$cluster <- paste0('cluster ', clu)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+test <- do.call(rbind.data.frame, test)
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw()
+
+```
+
+### Stratified / val2unit / mean
+
+
+
+```{r val2unit, fig.width = 10, fig.height = 8}
+## plotMeta
+
+val2unit <- function(x) {
+                (x - min(x, na.rm = TRUE))/(max(x, na.rm = TRUE) - 
+                  min(x, na.rm = TRUE))
+}
+
+set.seed(1)
+multiHeatMatrix(sml_genes,
+                xcoords = c(minx, maxx), clustfun = clu,
+                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE)
+
+set.seed(1)
+test <- lapply(sml_genes, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+
+
+```
+
+
+### Stratified / val2unit / scaled/ mean
+
+
+
+```{r , fig.width = 10, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled,
+                xcoords = c(minx, maxx), clustfun = clu,
+                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE)
+set.seed(1)
+test <- lapply(sml_genes_scaled, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+
+
+```
+
+
+### Smoothed, rescaled
+
+
+```{r, fig.width = 16, fig.height = 12}
 
 chopped <- list()
 
@@ -523,8 +684,9 @@ for (i in sort(unique(clu))) {
         
     }
 }
+```
 
-
+```{r, fig.width = 12, fig.height = 8}
 
 par(mfrow = c(2,3),  pty = 's')
 for (i in names(chopped)) {
@@ -539,8 +701,36 @@ for (i in names(chopped)) {
              xaxt='n',
              xlab = 'location')
 
-    axis(1, at = c(0.1, 0.9), labels = c('TSS', 'TES'))
+    axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', ''))
 }
+```
+
+### Smoothed, not rescaled
+
+```{r, fig.width = 12, fig.height = 8}
+
+par(mfrow = c(2,3),  pty = 's')
+for (i in names(chopped)) {
+    plotMeta(ScoreMatrixList(chopped[[i]]),
+             profile.names = names(sml_genes),
+             line.col = c('blue', 'black'), #, 'forestgreen'),
+             meta.rescale = FALSE,
+             lwd = 2,
+             smoothfun = function(x) stats::lowess(x, f = 1/10),
+             xcoords = c(minx, maxx),
+             main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)),
+             xaxt='n',
+             xlab = 'location')
+
+    axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', ''))
+}
+```
+
+
+### Non-smoothed
+
+```{r, fig.width = 16, fig.height = 12}
+
 
 par(mfrow = c(2,3),  pty = 's')
 for (i in names(chopped)) {
@@ -559,8 +749,6 @@ for (i in names(chopped)) {
 }
 
 ```
-
-Test end
 
 <!-- ### Rescaled, dispersions, lowess -->
 
@@ -587,19 +775,9 @@ plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
          xcoords = c(minx, maxx))
 ```
 
-### Rescaled, default lowess
-
-```{r, fig.width = 5, fig.height = 4}
-par(pty = 's')
-plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
-         meta.rescale = TRUE,
-         smoothfun = stats::lowess,
-         lwd = 2,
-         xcoords = c(minx, maxx))
-```
 
 
-### Rescaled, finetuned lowess
+### Rescaled, lowess
 
 ```{r, fig.width = 5, fig.height = 4}
 par(pty = 's')
@@ -635,6 +813,166 @@ plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
 <!-- ``` -->
 
 
+## Stratified metaplots, with CpGi
+
+
+## Stratified metaplots without CpG islands {.tabset .tabset-pills}
+
+
+
+### Stratified / no val2unit / mean
+
+
+```{r, fig.width = 10, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx), clustfun = clu,
+                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE)
+
+set.seed(1)
+test <- lapply(sml_genes_with_cpg, function(x) return(x@.Data))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+
+    fd$cluster <- paste0('cluster ', clu)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+test <- do.call(rbind.data.frame, test)
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw()
+
+```
+
+### Stratified / val2unit / mean
+
+
+
+```{r , fig.width = 10, fig.height = 8}
+## plotMeta
+
+
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx), clustfun = clu,
+                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE)
+
+set.seed(1)
+test <- lapply(sml_genes_with_cpg, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+
+
+```
+
+
+### Stratified / val2unit / scaled/ mean
+
+
+
+```{r , fig.width = 10, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                xcoords = c(minx, maxx), clustfun = clu,
+                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE)
+set.seed(1)
+test <- lapply(sml_genes_scaled_with_cpg, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+
+
+```
+
+
 # Check genome-wide binding, quantilized {.tabset .tabset-pills}
 
 Is CENP binding promoters anyway? Check, iteratively, the top signal, i.e. quantile 80 (top 20%), quantile 90 (top 10%) etc.
@@ -661,6 +999,9 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
 ```
 
 
+```{r}
+knitr::knit_exit()
+```
 
 
 # Export gene names by cluster
@@ -717,7 +1058,6 @@ ggplot(data = longer, aes(x = pos, y = value, color = sample)) +
     
 
 ```
-
 
 ```{r}
 knitr::knit_exit()
@@ -778,14 +1118,14 @@ names(edge_neg) <-   gsub('.txt_down', '_down',
 
 edge_sm <- lapply(c(edge_pos, edge_neg),
                   function(x) ScoreMatrixBin(x, genes_asis,
-                                             is.noCovNA = FALSE,
+                                             is.noCovNA = TRUE,
                                              bin.num = 100,
                                              type = "auto",  strand.aware = TRUE,
                                              weight.col = 'logFC'))
 
 
 
-edge <- ScoreMatrixList(edge_sm, bin.num = 100, cores = NTHREADS)
+edge <- ScoreMatrixList(edge_sm, windows = genes_asis, bin.num = 100, cores = NTHREADS)
 
 ```
 
@@ -793,12 +1133,6 @@ edge <- ScoreMatrixList(edge_sm, bin.num = 100, cores = NTHREADS)
 Why doesn't this start from 0?
 
 ```{r, fig.width = 12, fig.height = 4}
-
-report_clustering <- function(clu) {
-    return(clu)
-    
-}
-
 
 ## ?multiHeatMatrix
 table(clu)
@@ -813,7 +1147,6 @@ multiHeatMatrix(c(edge),
                 cex.main = 0.6)
 
 set.seed(1)
-
 multiHeatMatrix(c(edge),
                 order = TRUE,
                 clustfun = clu,
@@ -823,8 +1156,31 @@ multiHeatMatrix(c(edge),
                 cex.main = 0.6)
 
 
+edge
+sml_genes_with_cpg
+
+multiHeatMatrix(ScoreMatrixList(c(sml_genes_with_cpg, edge), bin.num = 100, windows = genes_asis),
+                xcoords = c(minx, maxx),
+                clustfun = FALSE,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE,
+                col = brewer.pal(9,"Blues"),
+                cex.main = 0.5)
+
+    
 set.seed(1)
-multiHeatMatrix(c(sml_genes_with_cpg, edge),
+multiHeatMatrix(ScoreMatrixList(c(sml_genes_with_cpg, edge), bin.num = 100, windows = genes_asis),
+                xcoords = c(minx, maxx),
+                clustfun = as.numeric(clu),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.5)
+
+set.seed(1)
+multiHeatMatrix(ScoreMatrixList(c(sml_genes_with_cpg), bin.num = 100, windows = genes_asis),
                 xcoords = c(minx, maxx),
                 clustfun = as.numeric(clu),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
@@ -838,15 +1194,72 @@ multiHeatMatrix(c(sml_genes_with_cpg, edge),
 
 ```{r, fig.width = 12, fig.height = 4}
 set.seed(1)
-multiHeatMatrix(c(sml_genes, edge),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
+multiHeatMatrix(ScoreMatrixList(c(sml_genes_with_cpg), bin.num = 100, windows = genes_asis),
+                xcoords = c(minx, maxx),
+                clustfun = clu,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                user.order = 1:5,
                 order = TRUE,
                 col = viridis(9),
-                clust.matrix = 1:4,
                 cex.main = 0.5)
 ```
 
 
+
+### Metaplots stratified
+
+```{r, fig.width = 16, fig.height = 12}
+chopped <- list()
+
+(curr <- ScoreMatrixList(c(sml_genes_with_cpg, edge), bin.num = 100, windows = genes_asis))
+
+for (i in sort(unique(clu))) {
+    print(i)
+    chopped[[as.character(i)]] <- list()
+    
+    for (id in names(curr)) {
+        chopped[[as.character(i)]][[id]] <- curr[[id]]
+
+        if (sum(clu == i) > 1) {
+            
+            chopped[[as.character(i)]][[id]]@.Data <- curr[[id]]@.Data[clu == i,]
+        }
+        else {
+            ## chopped[[as.character(i)]][[id]]@dimnames[[1]] <- 1:2
+            tmp <- as.matrix(
+                rbind(curr[[id]]@.Data[clu == i,],
+                      curr[[id]]@.Data[clu == i,]))
+
+            tmp[1,] <- rep(NA, ncol(tmp))
+            dimnames(tmp)[[1]] <- 1:2
+            chopped[[as.character(i)]][[id]]@.Data <- tmp
+        }
+        
+    }
+}
+
+
+par(mfrow = c(2,3),  pty = 's')
+for (i in names(chopped)) {
+    plotMeta(ScoreMatrixList(chopped[[i]]),
+             profile.names = names(curr),
+             line.col = c('blue', 'black'), #, 'forestgreen'),
+             meta.rescale = TRUE,
+             lwd = 2,
+             smoothfun = function(x) stats::lowess(x, f = 1/10),
+             xcoords = c(minx, maxx),
+             main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)),
+             xaxt='n',
+             xlab = 'location')
+
+    axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', ''))
+}
+```
+
+
+```{r}
+knitr::knit_exit()
+```
 
 
 
