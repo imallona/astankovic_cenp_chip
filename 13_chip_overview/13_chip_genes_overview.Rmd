@@ -1002,7 +1002,7 @@ multiHeatMatrix(sml_genes_scaled_with_cpg,
                 col = viridis(9))
 ```
 
-### Meta
+#### Meta
 
 ```{r,fig.width = 6, fig.height = 6}
 set.seed(1)
@@ -1258,74 +1258,74 @@ multiHeatMatrix(sml_genes_with_cpg_edge,
                 col = viridis(9),
                 cex.main = 0.5)
 
-set.seed(1)
-multiHeatMatrix(sml_genes_with_cpg_edge,
-                xcoords = c(minx, maxx),
-                group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
-                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                ## user.order = 1:5,
-                order = FALSE,
-                winsorize = c(1,99),
-                col = viridis(9),
-                cex.main = 0.5)
+## set.seed(1)
+## multiHeatMatrix(sml_genes_with_cpg_edge,
+##                 xcoords = c(minx, maxx),
+##                 group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
+##                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+##                 ## user.order = 1:5,
+##                 order = FALSE,
+##                 winsorize = c(1,99),
+##                 col = viridis(9),
+##                 cex.main = 0.5)
 
 
-set.seed(1)
-multiHeatMatrix(harmonize_sml(sml_genes_with_cpg_edge, clu[as.character(sml_genes_with_cpg_edge_idx)]),
-                xcoords = c(minx, maxx),
-                group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
-                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                ## user.order = 1:5,
-                order = FALSE,
-                winsorize = c(1,99),
-                col = viridis(9),
-                cex.main = 0.5)
+## set.seed(1)
+## multiHeatMatrix(harmonize_sml(sml_genes_with_cpg_edge, clu[as.character(sml_genes_with_cpg_edge_idx)]),
+##                 xcoords = c(minx, maxx),
+##                 group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
+##                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+##                 ## user.order = 1:5,
+##                 order = FALSE,
+##                 winsorize = c(1,99),
+##                 col = viridis(9),
+##                 cex.main = 0.5)
 
 
-set.seed(1)
-multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx),
-                group = as.factor(clu),
-                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                ## user.order = 1:5,
-                order = FALSE,
-                winsorize = c(1,99),
-                col = viridis(9),
-                cex.main = 0.5)
+## set.seed(1)
+## multiHeatMatrix(sml_genes_with_cpg,
+##                 xcoords = c(minx, maxx),
+##                 group = as.factor(clu),
+##                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+##                 ## user.order = 1:5,
+##                 order = FALSE,
+##                 winsorize = c(1,99),
+##                 col = viridis(9),
+##                 cex.main = 0.5)
 
 ## multiHeatMatrix
 
-set.seed(1)
-multiHeatMatrix(harmonize_sml(sml_genes_with_cpg, clu[as.character(sml_genes_with_cpg_edge_idx)]),
-                xcoords = c(minx, maxx),
-                clustfun = clu[as.character(sml_genes_with_cpg_edge_idx)],
-                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                ## user.order = 1:5,
-                order = FALSE,
-                winsorize = c(1,99),
-                col = viridis(9),
-                cex.main = 0.5)
+## set.seed(1)
+## multiHeatMatrix(harmonize_sml(sml_genes_with_cpg, clu[as.character(sml_genes_with_cpg_edge_idx)]),
+##                 xcoords = c(minx, maxx),
+##                 clustfun = clu[as.character(sml_genes_with_cpg_edge_idx)],
+##                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+##                 ## user.order = 1:5,
+##                 order = FALSE,
+##                 winsorize = c(1,99),
+##                 col = viridis(9),
+##                 cex.main = 0.5)
 
 
-multiHeatMatrix(harmonize_sml(sml_genes, clu[as.character(sml_genes_with_cpg_edge_idx)]),
-                xcoords = c(minx, maxx),
-                group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
-                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                ## user.order = 1:5,
-                order = TRUE,
-                winsorize = c(1,99),
-                col = viridis(9),
-                cex.main = 0.5)
+## multiHeatMatrix(harmonize_sml(sml_genes, clu[as.character(sml_genes_with_cpg_edge_idx)]),
+##                 xcoords = c(minx, maxx),
+##                 group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
+##                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+##                 ## user.order = 1:5,
+##                 order = TRUE,
+##                 winsorize = c(1,99),
+##                 col = viridis(9),
+##                 cex.main = 0.5)
 
-multiHeatMatrix(sml_genes,
-                xcoords = c(minx, maxx),
-                group = as.factor(clu),
-                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                ## user.order = 1:5,
-                order = TRUE,
-                winsorize = c(1,99),
-                col = viridis(9),
-                cex.main = 0.5)
+## multiHeatMatrix(sml_genes,
+##                 xcoords = c(minx, maxx),
+##                 group = as.factor(clu),
+##                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+##                 ## user.order = 1:5,
+##                 order = TRUE,
+##                 winsorize = c(1,99),
+##                 col = viridis(9),
+##                 cex.main = 0.5)
 
 
 ```
@@ -1380,9 +1380,9 @@ test %>% group_by(sample, cluster, pos) %>%
 set.seed(1)
 multiHeatMatrix(c(sml_genes_scaled_with_cpg_edge, bin.num = 100, windows = genes_asis),
                 xcoords = c(minx, maxx),
-                clustfun = clu_scaled[as.character(sml_genes_scaled_with_cpg_edge_idx)],
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_edge_idx)]),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                ## user.order = 1:5,
                 order = TRUE,
                 winsorize = c(1,99),
                 col = viridis(9),
@@ -1432,68 +1432,67 @@ test %>% group_by(sample, cluster, pos) %>%
 ```
 
 
-```{r, cache = FALSE}
-knitr::knit_exit()
-```
+<!-- ```{r, cache = FALSE} -->
+<!-- knitr::knit_exit() -->
+<!-- ``` -->
 
-### Metaplots stratified
+<!-- ### Metaplots stratified -->
 
-```{r, fig.width = 16, fig.height = 12}
-chopped <- list()
+<!-- ```{r, fig.width = 16, fig.height = 12} -->
+<!-- chopped <- list() -->
 
-(curr <- ScoreMatrixList(c(sml_genes_with_cpg, edge), bin.num = 100, windows = genes_asis))
+<!-- (curr <- ScoreMatrixList(c(sml_genes_with_cpg, edge), bin.num = 100, windows = genes_asis)) -->
 
-for (i in sort(unique(clu))) {
-    print(i)
-    chopped[[as.character(i)]] <- list()
+<!-- for (i in sort(unique(clu))) { -->
+<!--     print(i) -->
+<!--     chopped[[as.character(i)]] <- list() -->
     
-    for (id in names(curr)) {
-        chopped[[as.character(i)]][[id]] <- curr[[id]]
+<!--     for (id in names(curr)) { -->
+<!--         chopped[[as.character(i)]][[id]] <- curr[[id]] -->
 
-        if (sum(clu == i) > 1) {
+<!--         if (sum(clu == i) > 1) { -->
             
-            chopped[[as.character(i)]][[id]]@.Data <- curr[[id]]@.Data[clu == i,]
-        }
-        else {
-            ## chopped[[as.character(i)]][[id]]@dimnames[[1]] <- 1:2
-            tmp <- as.matrix(
-                rbind(curr[[id]]@.Data[clu == i,],
-                      curr[[id]]@.Data[clu == i,]))
+<!--             chopped[[as.character(i)]][[id]]@.Data <- curr[[id]]@.Data[clu == i,] -->
+<!--         } -->
+<!--         else { -->
+<!--             ## chopped[[as.character(i)]][[id]]@dimnames[[1]] <- 1:2 -->
+<!--             tmp <- as.matrix( -->
+<!--                 rbind(curr[[id]]@.Data[clu == i,], -->
+<!--                       curr[[id]]@.Data[clu == i,])) -->
 
-            tmp[1,] <- rep(NA, ncol(tmp))
-            dimnames(tmp)[[1]] <- 1:2
-            chopped[[as.character(i)]][[id]]@.Data <- tmp
-        }
+<!--             tmp[1,] <- rep(NA, ncol(tmp)) -->
+<!--             dimnames(tmp)[[1]] <- 1:2 -->
+<!--             chopped[[as.character(i)]][[id]]@.Data <- tmp -->
+<!--         } -->
         
-    }
-}
+<!--     } -->
+<!-- } -->
 
 
-par(mfrow = c(2,3),  pty = 's')
-for (i in names(chopped)) {
-    plotMeta(ScoreMatrixList(chopped[[i]]),
-             profile.names = names(curr),
-             line.col = c('blue', 'black'), #, 'forestgreen'),
-             meta.rescale = TRUE,
-             lwd = 2,
-             smoothfun = function(x) stats::lowess(x, f = 1/10),
-             xcoords = c(minx, maxx),
-             main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)),
-             xaxt='n',
-             xlab = 'location')
+<!-- par(mfrow = c(2,3),  pty = 's') -->
+<!-- for (i in names(chopped)) { -->
+<!--     plotMeta(ScoreMatrixList(chopped[[i]]), -->
+<!--              profile.names = names(curr), -->
+<!--              line.col = c('blue', 'black'), #, 'forestgreen'), -->
+<!--              meta.rescale = TRUE, -->
+<!--              lwd = 2, -->
+<!--              smoothfun = function(x) stats::lowess(x, f = 1/10), -->
+<!--              xcoords = c(minx, maxx), -->
+<!--              main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)), -->
+<!--              xaxt='n', -->
+<!--              xlab = 'location') -->
 
-    axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', ''))
-}
-```
-
-
-```{r}
-knitr::knit_exit()
-```
+<!--     axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', '')) -->
+<!-- } -->
+<!-- ``` -->
 
 
+<!-- ```{r} -->
+<!-- knitr::knit_exit() -->
+<!-- ``` -->
 
-## GSE125068
+
+## GSE125068 {.tabset .tabset-pills}
 
 This is mm10, but with unconsistent chr names
 
@@ -1608,8 +1607,9 @@ for (fn in fns) {
                           type = "auto",  strand.aware = TRUE)
         
         seqlevelsStyle(tmp) <- "UCSC"
-        bws[[basename(fn)]] <- ScoreMatrixBin(tmp, genes_asis_ncbi,
-                                              bin.num = 50,
+        bws[[basename(fn)]] <- ScoreMatrixBin(tmp,
+                                              genes_asis_ncbi, #genes_asis,
+                                              bin.num = 100,
                                               type = "auto",  strand.aware = TRUE)
 
         rm(tmp)
@@ -1617,22 +1617,145 @@ for (fn in fns) {
 }
 
 
-bws <- ScoreMatrixList(bws, bin.num = 50, cores = NTHREADS)
+bws <- ScoreMatrixList(bws,  genes_asis, bin.num = 100, strand.aware = TRUE, cores = NTHREADS)
 names(bws) <- gsub('.bw', '', names(bws))
 ```
 
-Unscaled
+### Unscaled {.tabset .tabset-pills}
+
+#### Heat
+
 
 ```{r, fig.width = 14, fig.height = 6}
-set.seed(1)
-multiHeatMatrix(c(sml_genes_with_cpg, bws),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, bws),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
                 order = TRUE,
+                winsorize = c(1,99),
                 col = viridis(9),
-                clust.matrix = 1:4,
                 cex.main = 0.7)
 
 ```
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+```
+
+### Scaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, scaleScoreMatrixList(bws)),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                winsorize = c(1,99),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+```
+
+
 
 ```{r}
 assign(gse, bws)
@@ -1640,29 +1763,9 @@ get(gse)
 
 ```
 
-Scaled
-
-```{r, fig.width = 14, fig.height = 6}
-set.seed(1)
-multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(bws)),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
-                order = TRUE,
-                col = viridis(9),
-                clust.matrix = 1:4,
-                cex.main = 0.7)
-
-```
-
-```{r}
-assign(gse, bws)
-get(gse)
-
-```
 
 
-
-
-## GSE85873
+## GSE85873 {.tabset .tabset-pills}
 
 These are peaks, not signal. mm10, ncbi-style chrom names.
 
@@ -1701,29 +1804,77 @@ peaks <- ScoreMatrixList(peaks,
 
 ```
 
+### Heat
 
-```{r, fig.width = 22, fig.height = 6}
-set.seed(1)
-multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, peaks),
-                xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster,
-                order = TRUE,
-                col = viridis(9),
-                clust.matrix = 1:4,
-                cex.main = 0.8)
+```{r}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, GSE125068, peaks),
+                                                genes_asis,
+                                                bin.num = 100,
+                                                strand.aware = TRUE,
+                                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
 
 ```
 
-<!-- Shall we cluster by CpGi and H3K4me1 instead? Because it is indeed binding H3K4me1-harboring promoters (=with enhancer marks) -->
 
-<!-- ```{r, fig.width = 22, fig.height = 6} -->
-<!-- set.seed(1) -->
-<!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, peaks), -->
-<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
-<!--                 order = TRUE, -->
-<!--                 col = viridis(9), -->
-<!--                 clust.matrix = c(5, 20), -->
-<!--                 cex.main = 0.8) -->
-<!-- ``` -->
+```{r, fig.width = 22, fig.height = 6}
+set.seed(1)
+
+multiHeatMatrix(tmp,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.8,
+                winsorize = c(1,99))
+
+```
+
+### Meta
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+```
+
 
 ```{r}
 assign(gse, peaks)
@@ -1731,6 +1882,9 @@ get(gse)
 
 ```
 
+```{r}
+knitr::knit_exit()
+```
 
 ## CENPA in non-neurons (liver)
 
