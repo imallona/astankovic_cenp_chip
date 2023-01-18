@@ -119,11 +119,8 @@ genes_asis$ensembl <- mapIds(org.Mm.eg.db,
 Resize genes_asis with 10% up and downstream
 
 ```{r}
-genes_asis
 
 genes_asis <- trim(resize(genes_asis, width = width(genes_asis)*1.20, fix = "center"))
-genes_asis
-
 
 ```
 
@@ -235,7 +232,7 @@ rm(mat.list, mat2)
 ```{r noscaling, fig.width = 8, fig.height = 6}
 set.seed(1)
 multiHeatMatrix(sml_genes, xcoords = c(0, 100),
-                clustfun = clu,
+                group = as.factor(clu),
                 order = TRUE)
 
 ```
@@ -259,6 +256,20 @@ if (DOWNSAMPLE) {
 ```
 
 
+```{r}
+## reduce an sml to a the windows present in a clustering
+harmonize_sml <- function(sml, clu){
+    targets <- names(clu)
+    tmp <- sml
+    for (item in names(sml)) {
+        tmp[[item]] <- sml[[item]]@.Data[targets,]
+    }
+
+    return(tmp)
+}
+    
+```
+
 ```{r, fig.width = 8, fig.height = 6}
 sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
                           windows = genes_asis, strand.aware = TRUE,
@@ -275,7 +286,7 @@ sml_genes_with_cpg <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes, sm_c
                                 reorder = TRUE)
 
 
-sml_genes_with_cpg_idx <- as.numeric(dimnames(sml_genes_with_cpg@.Data[[1]])[[1]])
+sml_genes_with_cpg_idx <- dimnames(sml_genes_with_cpg@.Data[[1]])[[1]]
 max(sml_genes_with_cpg_idx)
 length(sml_genes_with_cpg_idx)
 sml_genes_with_cpg
@@ -294,7 +305,7 @@ sml_genes_scaled_with_cpg <- intersectScoreMatrixList(ScoreMatrixList(c(sml_gene
                                 strand.aware = TRUE,
                                 cores = NTHREADS)),
                                 reorder = TRUE)
-sml_genes_scaled_with_cpg_idx <- as.numeric(dimnames(sml_genes_scaled_with_cpg@.Data[[1]])[[1]])
+sml_genes_scaled_with_cpg_idx <- dimnames(sml_genes_scaled_with_cpg@.Data[[1]])[[1]]
 
 ## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
 ##                                 genes_proms, bin.num = 50,
@@ -313,8 +324,8 @@ set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
                 xcoords = c(minx, maxx),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                clustfun = clu[as.character(sml_genes_with_cpg_idx)],
+                ## user.order = 1:5,
+                group = as.factor(clu[sml_genes_with_cpg_idx]),
                 order = TRUE)
 ```
 
@@ -326,8 +337,8 @@ set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
                 xcoords = c(minx, maxx),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                clustfun = clu[as.character(sml_genes_with_cpg_idx)],
+                ## user.order = 1:5,
+                group = as.factor(clu[as.character(sml_genes_with_cpg_idx)]),
                 col = brewer.pal(15,"Blues"),
                 order = TRUE)
 ```
@@ -339,8 +350,8 @@ set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
                 xcoords = c(minx, maxx),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                clustfun = clu[as.character(sml_genes_with_cpg_idx)],
+                ## user.order = 1:5,
+                group = as.factor(clu[as.character(sml_genes_with_cpg_idx)]),
                 order = TRUE,
                 col = viridis(9))
 
@@ -352,9 +363,9 @@ multiHeatMatrix(sml_genes_with_cpg,
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
                 xcoords = c(minx, maxx),
-                clustfun = clu[as.character(sml_genes_with_cpg_idx)],
+                group = as.factor(clu[as.character(sml_genes_with_cpg_idx)]),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                ## user.order = 1:5,
                 winsorize = c(1,99),
                 order = TRUE,
                 col = brewer.pal(5,"Blues"))
@@ -366,10 +377,10 @@ multiHeatMatrix(sml_genes_with_cpg,
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
                 xcoords = c(minx, maxx),
-                clustfun = clu[as.character(sml_genes_with_cpg_idx)],
+                group = as.factor(clu[as.character(sml_genes_with_cpg_idx)]),
                 winsorize = c(1,99),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                ## user.order = 1:5,
                 order = TRUE,
                 col = viridis(9))
 
@@ -385,8 +396,8 @@ multiHeatMatrix(sml_genes_with_cpg,
 set.seed(1)
 multiHeatMatrix(sml_genes_scaled, xcoords = c(minx, maxx),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                clustfun = clu,                
+                ## user.order = 1:5,
+                group = as.factor(clu),                
                 order = TRUE)
 
 ```
@@ -398,8 +409,8 @@ multiHeatMatrix(sml_genes_scaled, xcoords = c(minx, maxx),
 set.seed(1)
 multiHeatMatrix(sml_genes_scaled_with_cpg,
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                clustfun = clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)],  
+                ## user.order = 1:5,
+                group = as.factor(clu_scaled[sml_genes_scaled_with_cpg_idx]),  
                 xcoords = c(minx, maxx),
                 order = TRUE)
 ```
@@ -412,8 +423,8 @@ set.seed(1)
 multiHeatMatrix(sml_genes_scaled_with_cpg,
                 xcoords = c(minx, maxx),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                clustfun = clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)],
+                ## user.order = 1:5,
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)]),
                 col = brewer.pal(15,"Blues"),
                 order = TRUE)
 ```
@@ -425,8 +436,8 @@ set.seed(1)
 multiHeatMatrix(sml_genes_scaled_with_cpg,
                 xcoords = c(minx, maxx),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                clustfun = clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)],
+                ## user.order = 1:5,
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)]),
                 order = TRUE,
                 col = viridis(9))
 
@@ -438,10 +449,10 @@ multiHeatMatrix(sml_genes_scaled_with_cpg,
 set.seed(1)
 multiHeatMatrix(sml_genes_scaled_with_cpg,
                 xcoords = c(minx, maxx),
-                clustfun = clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)],
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)]),
                 winsorize = c(1,99),
-                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
                 order = TRUE,
                 col = brewer.pal(5,"Blues"))
 ```
@@ -452,9 +463,9 @@ multiHeatMatrix(sml_genes_scaled_with_cpg,
 set.seed(1)
 multiHeatMatrix(sml_genes_scaled_with_cpg,
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                ## user.order = 1:5,
                 xcoords = c(minx, maxx),
-                clustfun = clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)],
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)]),
                 winsorize = c(1,99),
                 order = TRUE,
                 col = viridis(9))
@@ -465,6 +476,8 @@ multiHeatMatrix(sml_genes_scaled_with_cpg,
 
 
 ## Metaplots {.tabset .tabset-pills}
+
+Mind metaplots are not winsorized!!!
 
 ### For genes, raw, with dispersions
 
@@ -489,7 +502,7 @@ plotMeta(sml_genes, profile.names = names(sml_genes),
 ```
 
 
-### With CpGi, rescaled, with dispersions
+### With CpGi, rescaled, without dispersions
 
 ```{r, fig.width = 5, fig.height = 4}
 par(pty = 's')
@@ -498,7 +511,7 @@ plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
          lwd = 2,
          smoothfun = NULL,
                   centralTrend = 'mean',
-         dispersion = 'se',
+         ## dispersion = 'se',
          xcoords = c(minx, maxx))
 ```
 
@@ -507,19 +520,26 @@ plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
 
 
 
-### Stratified / no val2unit / mean
+### Stratified / no val2unit / mean  {.tabset .tabset-pills}
 
+#### Heatmap
 
 ```{r, fig.width = 10, fig.height = 8}
 
 set.seed(1)
 multiHeatMatrix(sml_genes,
                 xcoords = c(minx, maxx),
-                clustfun = clu,
-                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                group = as.factor(clu),
+                winsorize = c(1,99),
+                col = viridis(9),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
                 order = TRUE)
+```
 
+#### Metaplot
+
+```{r}
 set.seed(1)
 test <- lapply(sml_genes, function(x) return(x@.Data))
 
@@ -554,11 +574,12 @@ test %>% group_by(sample, cluster, pos) %>%
 
 ```
 
-### Stratified / val2unit / mean
+### Stratified / val2unit / mean  {.tabset .tabset-pills}
 
 
+#### Heat
 
-```{r val2unit, fig.width = 10, fig.height = 8}
+```{r, val2unit, fig.width = 10, fig.height = 8}
 ## plotMeta
 
 val2unit <- function(x) {
@@ -569,11 +590,17 @@ val2unit <- function(x) {
 set.seed(1)
 multiHeatMatrix(sml_genes,
                 xcoords = c(minx, maxx),
-                clustfun = clu,
-                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                group = as.factor(clu),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                winsorize = c(1,99),
+                col = viridis(9),
                 order = TRUE)
+```
 
+#### Meta
+
+```{r, fig.width = 10, fig.height = 8}
 set.seed(1)
 test <- lapply(sml_genes, function(x) return(val2unit(x@.Data)))
 
@@ -609,24 +636,31 @@ test %>% group_by(sample, cluster, pos) %>%
     scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
 
 
-
-
 ```
 
 
-### Stratified / val2unit / scaled/ mean
+### Stratified / val2unit / scaled/ mean   {.tabset .tabset-pills}
 
-
+#### Heat
 
 ```{r , fig.width = 10, fig.height = 8}
 
 set.seed(1)
 multiHeatMatrix(sml_genes_scaled,
                 xcoords = c(minx, maxx),
-                clustfun = clu_scaled,
-                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                group = as.factor(clu_scaled),
+                winsorize = c(1,99),
+                col = viridis(9),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
                 order = TRUE)
+
+```
+
+
+#### Meta
+
+```{r, fig.width = 10, fig.height = 8}
 set.seed(1)
 test <- lapply(sml_genes_scaled, function(x) return(val2unit(x@.Data)))
 
@@ -667,140 +701,140 @@ test %>% group_by(sample, cluster, pos) %>%
 ```
 
 
-### Smoothed, rescaled - old
+<!-- ### Smoothed, rescaled - old -->
 
 
-```{r, fig.width = 16, fig.height = 12}
+<!-- ```{r, fig.width = 16, fig.height = 12} -->
 
-chopped <- list()
+<!-- chopped <- list() -->
 
-for (i in sort(unique(clu))) {
-    print(i)
-    chopped[[as.character(i)]] <- list()
+<!-- for (i in sort(unique(clu))) { -->
+<!--     print(i) -->
+<!--     chopped[[as.character(i)]] <- list() -->
     
-    for (id in names(sml_genes)) {
-        chopped[[as.character(i)]][[id]] <- sml_genes[[id]]
+<!--     for (id in names(sml_genes)) { -->
+<!--         chopped[[as.character(i)]][[id]] <- sml_genes[[id]] -->
 
-        if (sum(clu == i) > 1) {
+<!--         if (sum(clu == i) > 1) { -->
             
-            chopped[[as.character(i)]][[id]]@.Data <- sml_genes[[id]]@.Data[clu == i,]
-        }
-        else {
-            ## chopped[[as.character(i)]][[id]]@dimnames[[1]] <- 1:2
-            tmp <- as.matrix(
-                rbind(sml_genes[[id]]@.Data[clu == i,],
-                      sml_genes[[id]]@.Data[clu == i,]))
+<!--             chopped[[as.character(i)]][[id]]@.Data <- sml_genes[[id]]@.Data[clu == i,] -->
+<!--         } -->
+<!--         else { -->
+<!--             ## chopped[[as.character(i)]][[id]]@dimnames[[1]] <- 1:2 -->
+<!--             tmp <- as.matrix( -->
+<!--                 rbind(sml_genes[[id]]@.Data[clu == i,], -->
+<!--                       sml_genes[[id]]@.Data[clu == i,])) -->
 
-            tmp[1,] <- rep(NA, ncol(tmp))
-            dimnames(tmp)[[1]] <- 1:2
-            chopped[[as.character(i)]][[id]]@.Data <- tmp
-        }
+<!--             tmp[1,] <- rep(NA, ncol(tmp)) -->
+<!--             dimnames(tmp)[[1]] <- 1:2 -->
+<!--             chopped[[as.character(i)]][[id]]@.Data <- tmp -->
+<!--         } -->
         
-    }
-}
-```
+<!--     } -->
+<!-- } -->
+<!-- ``` -->
 
-```{r, fig.width = 12, fig.height = 8}
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
 
-par(mfrow = c(2,3),  pty = 's')
-for (i in names(chopped)) {
-    plotMeta(ScoreMatrixList(chopped[[i]]),
-             profile.names = names(sml_genes),
-             line.col = c('blue', 'black'), #, 'forestgreen'),
-             meta.rescale = TRUE,
-             lwd = 2,
-             smoothfun = function(x) stats::lowess(x, f = 1/10),
-             xcoords = c(minx, maxx),
-             main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)),
-             xaxt='n',
-             xlab = 'location')
+<!-- par(mfrow = c(2,3),  pty = 's') -->
+<!-- for (i in names(chopped)) { -->
+<!--     plotMeta(ScoreMatrixList(chopped[[i]]), -->
+<!--              profile.names = names(sml_genes), -->
+<!--              line.col = c('blue', 'black'), #, 'forestgreen'), -->
+<!--              meta.rescale = TRUE, -->
+<!--              lwd = 2, -->
+<!--              smoothfun = function(x) stats::lowess(x, f = 1/10), -->
+<!--              xcoords = c(minx, maxx), -->
+<!--              main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)), -->
+<!--              xaxt='n', -->
+<!--              xlab = 'location') -->
 
-    axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', ''))
-}
-```
+<!--     axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', '')) -->
+<!-- } -->
+<!-- ``` -->
 
-### Smoothed, not rescaled
+<!-- ### Smoothed, not rescaled -->
 
-```{r, fig.width = 12, fig.height = 8}
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
 
-par(mfrow = c(2,3),  pty = 's')
-for (i in names(chopped)) {
-    plotMeta(ScoreMatrixList(chopped[[i]]),
-             profile.names = names(sml_genes),
-             line.col = c('blue', 'black'), #, 'forestgreen'),
-             meta.rescale = FALSE,
-             lwd = 2,
-             smoothfun = function(x) stats::lowess(x, f = 1/10),
-             xcoords = c(minx, maxx),
-             main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)),
-             xaxt='n',
-             xlab = 'location')
+<!-- par(mfrow = c(2,3),  pty = 's') -->
+<!-- for (i in names(chopped)) { -->
+<!--     plotMeta(ScoreMatrixList(chopped[[i]]), -->
+<!--              profile.names = names(sml_genes), -->
+<!--              line.col = c('blue', 'black'), #, 'forestgreen'), -->
+<!--              meta.rescale = FALSE, -->
+<!--              lwd = 2, -->
+<!--              smoothfun = function(x) stats::lowess(x, f = 1/10), -->
+<!--              xcoords = c(minx, maxx), -->
+<!--              main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)), -->
+<!--              xaxt='n', -->
+<!--              xlab = 'location') -->
 
-    axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', ''))
-}
-```
-
-
-### Non-smoothed
-
-```{r, fig.width = 16, fig.height = 12}
+<!--     axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', '')) -->
+<!-- } -->
+<!-- ``` -->
 
 
-par(mfrow = c(2,3),  pty = 's')
-for (i in names(chopped)) {
-    plotMeta(ScoreMatrixList(chopped[[i]]),
-             profile.names = names(sml_genes),
-             line.col = c('blue', 'black'), #, 'forestgreen'),
-             meta.rescale = TRUE,
-             lwd = 2,
-             smoothfun = NULL,
-             xcoords = c(minx, maxx),
-             main = sprintf('raw signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)),
-             xaxt='n',
-             xlab = 'location')
+<!-- ### Non-smoothed -->
 
-    axis(1, at = c(0.1, 0.9), labels = c('TSS', 'TES'))
-}
+<!-- ```{r, fig.width = 16, fig.height = 12} -->
 
-```
 
-<!-- ### Rescaled, dispersions, lowess -->
+<!-- par(mfrow = c(2,3),  pty = 's') -->
+<!-- for (i in names(chopped)) { -->
+<!--     plotMeta(ScoreMatrixList(chopped[[i]]), -->
+<!--              profile.names = names(sml_genes), -->
+<!--              line.col = c('blue', 'black'), #, 'forestgreen'), -->
+<!--              meta.rescale = TRUE, -->
+<!--              lwd = 2, -->
+<!--              smoothfun = NULL, -->
+<!--              xcoords = c(minx, maxx), -->
+<!--              main = sprintf('raw signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)), -->
+<!--              xaxt='n', -->
+<!--              xlab = 'location') -->
 
+<!--     axis(1, at = c(0.1, 0.9), labels = c('TSS', 'TES')) -->
+<!-- } -->
+
+<!-- ``` -->
+
+<!-- <\!-- ### Rescaled, dispersions, lowess -\-> -->
+
+
+<!-- <\!-- ```{r, fig.width = 5, fig.height = 4} -\-> -->
+<!-- <\!-- par(pty = 's') -\-> -->
+<!-- <\!-- plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg), -\-> -->
+<!-- <\!--          meta.rescale = TRUE, -\-> -->
+<!-- <\!--          lwd = 2, -\-> -->
+<!-- <\!--          smoothfun = stats::lowess, -\-> -->
+<!-- <\!--          centralTrend = 'mean', -\-> -->
+<!-- <\!--          dispersion = 'se', -\-> -->
+<!-- <\!--          xcoords = c(minx, maxx)) -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+<!-- ### Rescaled, raw -->
 
 <!-- ```{r, fig.width = 5, fig.height = 4} -->
 <!-- par(pty = 's') -->
 <!-- plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg), -->
 <!--          meta.rescale = TRUE, -->
 <!--          lwd = 2, -->
-<!--          smoothfun = stats::lowess, -->
-<!--          centralTrend = 'mean', -->
-<!--          dispersion = 'se', -->
+<!--          smoothfun = NULL, -->
 <!--          xcoords = c(minx, maxx)) -->
 <!-- ``` -->
 
-### Rescaled, raw
-
-```{r, fig.width = 5, fig.height = 4}
-par(pty = 's')
-plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
-         meta.rescale = TRUE,
-         lwd = 2,
-         smoothfun = NULL,
-         xcoords = c(minx, maxx))
-```
 
 
+<!-- ### Rescaled, lowess -->
 
-### Rescaled, lowess
-
-```{r, fig.width = 5, fig.height = 4}
-par(pty = 's')
-plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
-         meta.rescale = TRUE,
-         smoothfun = function(x) stats::lowess(x, f = 1/10),
-         lwd = 2,
-         xcoords = c(minx, maxx))
-```
+<!-- ```{r, fig.width = 5, fig.height = 4} -->
+<!-- par(pty = 's') -->
+<!-- plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg), -->
+<!--          meta.rescale = TRUE, -->
+<!--          smoothfun = function(x) stats::lowess(x, f = 1/10), -->
+<!--          lwd = 2, -->
+<!--          xcoords = c(minx, maxx)) -->
+<!-- ``` -->
 
 <!-- ### Lowess, dispersions -->
 
@@ -831,18 +865,26 @@ plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
 
 
 
-### Stratified / no val2unit / mean
+### Stratified / no val2unit / mean {.tabset .tabset-pills}
 
+#### Heat
 
 ```{r, fig.width = 10, fig.height = 8}
 
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = clu[sml_genes_with_cpg_idx],
-                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[sml_genes_with_cpg_idx]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                winsorize = c(1,99),
+                col = viridis(9),
                 order = TRUE)
+```
 
+#### Meta
+
+```{r fig.width = 6, fig.height = 6}
 set.seed(1)
 test <- lapply(sml_genes_with_cpg, function(x) return(x@.Data))
 
@@ -877,9 +919,12 @@ test %>% group_by(sample, cluster, pos) %>%
 
 ```
 
-### Stratified / val2unit / mean
 
 
+### Stratified / val2unit / mean {.tabset .tabset-pills}
+
+
+#### Heatmap
 
 ```{r , fig.width = 10, fig.height = 8}
 ## plotMeta
@@ -887,11 +932,19 @@ test %>% group_by(sample, cluster, pos) %>%
 
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg,
-                xcoords = c(minx, maxx), clustfun = clu[sml_genes_with_cpg_idx],
-                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[sml_genes_with_cpg_idx]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                winsorize = c(1,99),
+                col = viridis(9),
                 order = TRUE)
+```
 
+
+#### Meta
+
+```{r fig.height = 6, fig.width = 6}
 set.seed(1)
 test <- lapply(sml_genes_with_cpg, function(x) return(val2unit(x@.Data)))
 
@@ -932,18 +985,26 @@ test %>% group_by(sample, cluster, pos) %>%
 ```
 
 
-### Stratified / val2unit / scaled/ mean
+### Stratified / val2unit / scaled/ mean {.tabset .tabset-pills}
 
-
+#### Heatmap
 
 ```{r , fig.width = 10, fig.height = 8}
 
 set.seed(1)
 multiHeatMatrix(sml_genes_scaled_with_cpg,
-                xcoords = c(minx, maxx), clustfun = clu_scaled[sml_genes_scaled_with_cpg_idx],
-                  group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                order = TRUE)
+                xcoords = c(minx, maxx),
+                group = as.factor(clu_scaled[sml_genes_scaled_with_cpg_idx]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9))
+```
+
+### Meta
+
+```{r,fig.width = 6, fig.height = 6}
 set.seed(1)
 test <- lapply(sml_genes_scaled_with_cpg, function(x) return(val2unit(x@.Data)))
 
@@ -977,8 +1038,6 @@ test %>% group_by(sample, cluster, pos) %>%
     facet_wrap(~cluster) +
     theme_bw() +
     scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
-
-
 
 
 ```
@@ -1073,9 +1132,9 @@ Not done here, this should be done for promoters - only (right?)
 <!-- ``` -->
 
 
-# Add data
+# With public data
 
-## Gene expression
+## Gene expression {.tabset .tabset-pills}
 
 
 ```{r}
@@ -1133,16 +1192,16 @@ edge_sm <- lapply(c(edge_pos, edge_neg),
 
 
 edge <- ScoreMatrixList(edge_sm, windows = genes_asis, bin.num = 100, cores = NTHREADS)
-edge
+## edge
 ```
 
+### Heatmap expression alone
 
-Why doesn't this start from 0?
 
 ```{r, fig.width = 12, fig.height = 4}
 
 ## ?multiHeatMatrix
-table(clu)
+## table(clu)
 set.seed(1)
 multiHeatMatrix(c(edge),
                 xcoords = c(minx, maxx),
@@ -1153,20 +1212,14 @@ multiHeatMatrix(c(edge),
                 col = viridis(9),
                 cex.main = 0.6)
 
-
-
-multiHeatMatrix(ScoreMatrixList(c(sml_genes_with_cpg, edge), bin.num = 100, windows = genes_asis),
-                xcoords = c(minx, maxx),
-                clustfun = FALSE,
-                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                order = TRUE,
-                col = brewer.pal(9,"Blues"),
-                cex.main = 0.5)
-
 ```
 
-```{r}
+### With unscaled CENPa/CpGi {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 12, fig.height = 4}
 
 sml_genes_with_cpg_edge <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, edge),
                                 genes_asis, bin.num = 100,
@@ -1174,53 +1227,214 @@ sml_genes_with_cpg_edge <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_
                                 cores = NTHREADS),
                                 reorder = TRUE)
 
-sml_genes_scaled_with_cpg_edge_idx <- as.numeric(dimnames(sml_genes_with_cpg_edge@.Data[[1]])[[1]])
+sml_genes_with_cpg_edge_idx <- dimnames(sml_genes_with_cpg_edge@.Data[[1]])[[1]]
+length(sml_genes_with_cpg_edge_idx)
+max(as.numeric(sml_genes_with_cpg_edge_idx))
 
-max(sml_genes_scaled_with_cpg_edge_idx)
+
+sml_genes_scaled_with_cpg_edge <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_scaled_with_cpg, edge),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+sml_genes_scaled_with_cpg_edge_idx <- dimnames(sml_genes_scaled_with_cpg_edge@.Data[[1]])[[1]]
+
+
 length(sml_genes_scaled_with_cpg_edge_idx)
+max(as.numeric(sml_genes_scaled_with_cpg_edge_idx))
 
+table(clu[as.character(sml_genes_with_cpg_edge_idx)])
+table(clu)
 
-    
 set.seed(1)
 multiHeatMatrix(sml_genes_with_cpg_edge,
                 xcoords = c(minx, maxx),
-                clustfun = clu[as.character(sml_genes_scaled_with_cpg_edge_idx)],
+                group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
+                ## user.order = 1:5,
                 order = TRUE,
+                winsorize = c(1,99),
                 col = viridis(9),
                 cex.main = 0.5)
 
-knitr::knit_exit()
-```
-
-```
 set.seed(1)
-multiHeatMatrix(ScoreMatrixList(c(sml_genes_with_cpg), bin.num = 100, windows = genes_asis),
+multiHeatMatrix(sml_genes_with_cpg_edge,
                 xcoords = c(minx, maxx),
-                clustfun = as.numeric(clu),
+                group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
-                user.order = 1:5,
-                order = TRUE,
+                ## user.order = 1:5,
+                order = FALSE,
+                winsorize = c(1,99),
                 col = viridis(9),
                 cex.main = 0.5)
 
+
+set.seed(1)
+multiHeatMatrix(harmonize_sml(sml_genes_with_cpg_edge, clu[as.character(sml_genes_with_cpg_edge_idx)]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = FALSE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.5)
+
+
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = FALSE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.5)
+
+## multiHeatMatrix
+
+set.seed(1)
+multiHeatMatrix(harmonize_sml(sml_genes_with_cpg, clu[as.character(sml_genes_with_cpg_edge_idx)]),
+                xcoords = c(minx, maxx),
+                clustfun = clu[as.character(sml_genes_with_cpg_edge_idx)],
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = FALSE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.5)
+
+
+multiHeatMatrix(harmonize_sml(sml_genes, clu[as.character(sml_genes_with_cpg_edge_idx)]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[as.character(sml_genes_with_cpg_edge_idx)]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.5)
+
+multiHeatMatrix(sml_genes,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.5)
+
+
 ```
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(sml_genes_with_cpg_edge, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[as.character(sml_genes_with_cpg_edge_idx)])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+```
+
+### With scaled CENPa and CpGi  {.tabset .tabset-pills}
+
+#### Heat
 
 
 ```{r, fig.width = 12, fig.height = 4}
 set.seed(1)
-multiHeatMatrix(ScoreMatrixList(c(sml_genes_with_cpg), bin.num = 100, windows = genes_asis),
+multiHeatMatrix(c(sml_genes_scaled_with_cpg_edge, bin.num = 100, windows = genes_asis),
                 xcoords = c(minx, maxx),
-                clustfun = clu,
+                clustfun = clu_scaled[as.character(sml_genes_scaled_with_cpg_edge_idx)],
                 group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
                 user.order = 1:5,
                 order = TRUE,
+                winsorize = c(1,99),
                 col = viridis(9),
                 cex.main = 0.5)
 ```
 
 
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(sml_genes_scaled_with_cpg_edge, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu_scaled[sml_genes_scaled_with_cpg_edge_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+```
+
+
+```{r, cache = FALSE}
+knitr::knit_exit()
+```
 
 ### Metaplots stratified
 
