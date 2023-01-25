@@ -1072,9 +1072,6 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
 
 
 
-# Export gene names by cluster
-
-Not done here, this should be done for promoters - only (right?)
 
 
 <!-- # Custom plots -->
@@ -1383,65 +1380,141 @@ test %>% group_by(sample, cluster, pos) %>%
 ```
 
 
-<!-- ```{r, cache = FALSE} -->
-<!-- knitr::knit_exit() -->
-<!-- ``` -->
+## Differential gene expression by cluster
 
-<!-- ### Metaplots stratified -->
+### Not scaled
 
-<!-- ```{r, fig.width = 16, fig.height = 12} -->
-<!-- chopped <- list() -->
 
-<!-- (curr <- ScoreMatrixList(c(sml_genes_with_cpg, edge), bin.num = 100, windows = genes_asis)) -->
+Not sure if this is correct!!!
 
-<!-- for (i in sort(unique(clu))) { -->
-<!--     print(i) -->
-<!--     chopped[[as.character(i)]] <- list() -->
+```{r}
+
+
+sml <-ScoreMatrixList(edge,
+                      genes_asis,
+                      bin.num = 100,
+                      is.noCovNA = TRUE,
+                      strand.aware = TRUE,
+                      cores = NTHREADS)
+
+
+targets <- names(clu)
+
+
+tmp <- sml
+for (item in names(sml)) {
+
+    detected <- rownames(sml[[item]]@.Data)
+
+    targets <- intersect(targets, detected)
+
+    sum(targets %in% rownames(sml[[item]]@.Data))
+    sum(!targets %in% rownames(sml[[item]]@.Data))
     
-<!--     for (id in names(curr)) { -->
-<!--         chopped[[as.character(i)]][[id]] <- curr[[id]] -->
+    
+    tmp[[item]] <- sml[[item]]@.Data[targets,]
+}
 
-<!--         if (sum(clu == i) > 1) { -->
-            
-<!--             chopped[[as.character(i)]][[id]]@.Data <- curr[[id]]@.Data[clu == i,] -->
-<!--         } -->
-<!--         else { -->
-<!--             ## chopped[[as.character(i)]][[id]]@dimnames[[1]] <- 1:2 -->
-<!--             tmp <- as.matrix( -->
-<!--                 rbind(curr[[id]]@.Data[clu == i,], -->
-<!--                       curr[[id]]@.Data[clu == i,])) -->
+max(as.numeric(names(clu)))
 
-<!--             tmp[1,] <- rep(NA, ncol(tmp)) -->
-<!--             dimnames(tmp)[[1]] <- 1:2 -->
-<!--             chopped[[as.character(i)]][[id]]@.Data <- tmp -->
-<!--         } -->
-        
-<!--     } -->
-<!-- } -->
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+tmp
+length(clu)
+length(genes_asis$ensembl)
 
 
-<!-- par(mfrow = c(2,3),  pty = 's') -->
-<!-- for (i in names(chopped)) { -->
-<!--     plotMeta(ScoreMatrixList(chopped[[i]]), -->
-<!--              profile.names = names(curr), -->
-<!--              line.col = c('blue', 'black'), #, 'forestgreen'), -->
-<!--              meta.rescale = TRUE, -->
-<!--              lwd = 2, -->
-<!--              smoothfun = function(x) stats::lowess(x, f = 1/10), -->
-<!--              xcoords = c(minx, maxx), -->
-<!--              main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)), -->
-<!--              xaxt='n', -->
-<!--              xlab = 'location') -->
 
-<!--     axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', '')) -->
-<!-- } -->
-<!-- ``` -->
+```
 
 
-<!-- ```{r} -->
-<!-- knitr::knit_exit() -->
-<!-- ``` -->
+Rather, Annotation by generic features
 
+
+What about filtering genes in being up/down, get a genomic ranges, and then plot the cenp enrichment? 500 bp-windows viewpoint
+
+
+```{r, eval = TRUE}
+
+for (contrast in c("treated_1h-control", "treated_6h-treated_1h", "treated_48h-treated_6h")) {
+
+    curr_up <- paste0(contrast, '_up')
+    curr_down <- paste0(contrast, '_down')
+    comb <- findFeatureComb(GRangesList(c(list(genes = genes_asis), covs, edge_pos[curr_up],
+                                          edge_neg[curr_down])), width = 500, use.names = TRUE)
+
+    comb <- comb[grepl('genes', comb$class),]
+    ## grab the whole gene, for those overlaps
+
+    ## query, subject
+    ## ranges <- subsetByOverlaps(query = genes_asis, subject = comb)
+
+    ## query, subject
+    hits <- findOverlaps(query = genes_asis, subject = comb)
+
+    ## mcols(ranges)$class <- NA
+    ## for (i in 1: length(hits)) {
+    ##     ranges
+    ## }
+
+
+    
+    overlapclass <- CharacterList(split(comb$class[subjectHits(hits)],
+                                        queryHits(hits)))
+
+    get_longest_string <- function(x) {
+        return(head(x[rev(order(nchar(x)))], 1))
+    }
+    
+    binding <- sapply(overlapclass, function(x) return(get_longest_string(x)))
+
+
+
+    mcols(genes_asis) <- DataFrame(mcols(genes_asis),  binding)
+    
+
+    
+    
+    sml = ScoreMatrixList(c(covs, edge_pos[[curr_up]], edge_neg[[curr_down]]), genes_asis, bin.num = 50,
+                          is.noCovNA = TRUE, strand.aware = TRUE)
+    names(sml) <- c(names(covs), curr_up, curr_down)
+
+    sml <- intersectScoreMatrixList(sml, reorder = TRUE)
+
+    sml.scaled = scaleScoreMatrixList(sml)
+
+    found_row_idx <- dimnames(sml[[1]]@.Data)[[1]]
+    found_gene_id <- genes_asis$gene_id[as.numeric(as.character(found_row_idx))]
+
+    unique(genes_asis[found_gene_id,]$binding)
+    multiHeatMatrix(sml.scaled, xcoords = c(-250, 250), col = c("lightgray", "blue"),
+                    group = as.factor(genes_asis[found_gene_id,]$binding))
+
+}
+
+
+table(comb$class)
+
+
+sml = ScoreMatrixList(c(covs, edge_pos, edge_neg), comb, bin.num = 50)
+
+names(sml) <- c(names(edge_pos), names(edge_neg), names(covs))
+
+sml.scaled = scaleScoreMatrixList(sml)
+```
+
+
+```{r fig.width = 20, fig.height = 6}
+multiHeatMatrix(sml.scaled, xcoords = c(-250, 250), col = c("lightgray", "blue"),
+                clustfun = function(x) kmeans(x,
+                                              centers=6)$cluster,
+                clust.matrix = 7:8)
+
+```
+
+```{r}
+knitr::knit_exit()
+```
 
 ## GSE125068 {.tabset .tabset-pills}
 
