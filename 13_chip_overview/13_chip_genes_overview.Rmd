@@ -1434,81 +1434,421 @@ Rather, Annotation by generic features
 What about filtering genes in being up/down, get a genomic ranges, and then plot the cenp enrichment? 500 bp-windows viewpoint
 
 
-```{r, eval = TRUE}
+```{r}
+export_bed <- function(gr, outfile) {
+
+    gr <- sort(sortSeqlevels(gr))
+    fd <- data.frame(seqnames = seqnames(gr),
+                     starts = start(gr)-1,
+                     ends = end(gr),
+                     names = c(rep(".", length(gr))),
+                     scores = c(rep(".", length(gr))),
+                     strands = strand(gr))
+    fd <- cbind(fd, mcols(gr))
+
+    write.table(fd, file = outfile, quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+}
+
+
+dir.create('bed')
+
+export_bed(genes_asis, outfile = 'bed/genes.bed')
+```
+
+
+```{r}
+ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10'
+edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt'))
+
+edge_fns <- edge_fns[!grepl('treatmenttreated_48h-treatmenttreated_1h', edge_fns)]
+
+for (fn in edge_fns) {
+    ## tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12,
+    ##                                                       logCPM = 13, F = 14, pval = 15, padj = 16))
+
+    tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 9,
+                                                          logCPM = 10, F = 11, pval = 12, padj = 13))
+
+    ## tmp <- tmp[tmp$padj < 0.05,]
+
+    seqlevelsStyle(tmp) <- "UCSC"
+    if (DOWNSAMPLE) {
+         seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    } else {
+        
+        seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, allowed_chr, pruning.mode="coarse")
+        
+    }
+    
+   export_bed(tmp,  outfile = file.path('bed', sprintf('%s_edge.bed', gsub('.txt', '', basename(fn)))))
+    
+    rm(tmp)
+}
+
+```
+
+
+
+```{bash runmemanually_not_finished, eval = FALSE}
+mkdir -p bed
+ARMOR=/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10
+COVS=/home/imallona/cenp_chip/merged_replicates/
+
+awk '{OFS=FS="\t"; print $1,$2,$3,$9,$10}' bed/edgeR_dge_results_treatmenttreated_1h-treatmentcontrol_edge.bed > bed/edge.bed
+
+
+~/soft/bedtools/bedtools-2.29.2/bin/bedtools intersect -a bed/genes.bed  \
+                                             -b bed/edge.bed  "$COVS"/chip_HC_1_cov_bga.bedgraph.gz "$COVS"/chip_PTZ_1_cov_bga.bedgraph.gz \
+                                             -wao -names edge chip_hc chip_ptz > bed/tmp.bed
+
+
+
+
+# # so they both have 14 fields, edgeR and chip outputs
+# sed -i  's/\tchip/\tchip\tchip/g' bed/tmp.bed
+
+~/soft/bedtools/bedtools-2.29.2/bin/bedtools groupby -g 1,2,3,8 -c9 -o distinct | head  
+
+```
+
+```{r notfinishedneither, eval = FALSE}
+
+
+edge_all <- list()
+for (fn in edge_fns) {
+
+    tmp <- read.table(fn, header = TRUE)
+
+    tmp$ensembl <- sapply(strsplit(tmp$gene_id, split = '.', fixed = T), function(x) return(x[1]))
+    edge_all[[fn]] <- tmp
+    rm(tmp)
+}
+
+names(edge_all) <-  gsub('.txt', '',
+                         gsub('treatment', '', gsub('edgeR_dge_results_', '', basename(names(edge_all)))))
+
+## mind the coverage filter
+## covs_filt <- lapply(covs, function(x) return(x[!is.na(x$cov) & x$cov > 9,]))
+
+export_bed(gr = covs$cenp_HC_1, outfile = 'bed/cenp_hc.bed')
+export_bed(gr = covs$cenp_PTZ_1, outfile = 'bed/cenp_ptz.bed')
 
 for (contrast in c("treated_1h-control", "treated_6h-treated_1h", "treated_48h-treated_6h")) {
 
-    curr_up <- paste0(contrast, '_up')
-    curr_down <- paste0(contrast, '_down')
-    comb <- findFeatureComb(GRangesList(c(list(genes = genes_asis), covs, edge_pos[curr_up],
-                                          edge_neg[curr_down])), width = 500, use.names = TRUE)
+    ## curr_up <- paste0(contrast, '_up')
+    ## curr_down <- paste0(contrast, '_down')
+    ## comb <- findFeatureComb(GRangesList(c(covs, edge_pos[curr_up],
+    ##                                       edge_neg[curr_down])), width = 500, use.names = TRUE)
 
-    comb <- comb[grepl('genes', comb$class),]
-    ## grab the whole gene, for those overlaps
+    ## comb <- findFeatureComb(GRangesList(c(covs, list(genes = genes_asis))), width = 50, use.names = TRUE)
 
-    ## query, subject
-    ## ranges <- subsetByOverlaps(query = genes_asis, subject = comb)
+    export_bed(gr = edge_all[[contrast]], outfile = sprintf('bed/%s_edge.bed', contrast))
+    ## export_bed(gr = comb, outfile = sprintf('bed/%s_%s.bed', contrast, 'comb'))
 
-    ## query, subject
-    hits <- findOverlaps(query = genes_asis, subject = comb)
+    cmd <- sprintf('~/soft/bedtools/bedtools-2.29.2/bin/bedtools  intersect -a bed/genes.bed  -b bed/%s_comb.bed  -wb -wa > bed/%s_genes.bed', contrast, contrast)
+    system(cmd)
 
-    ## mcols(ranges)$class <- NA
-    ## for (i in 1: length(hits)) {
-    ##     ranges
-    ## }
+    ## overlaps <- import(sprintf('bed/%s_genes.bed', contrast), format="bed")
+    overlaps <- read.table(sprintf('bed/%s_genes.bed', contrast), header = FALSE)
 
-
-    
-    overlapclass <- CharacterList(split(comb$class[subjectHits(hits)],
-                                        queryHits(hits)))
+    fd <- merge(overlaps, edge_all[[contrast]], by.x = 'V8', by.y = 'ensembl')
+    ## expression count table
 
     get_longest_string <- function(x) {
         return(head(x[rev(order(nchar(x)))], 1))
     }
     
-    binding <- sapply(overlapclass, function(x) return(get_longest_string(x)))
-
-
-
-    mcols(genes_asis) <- DataFrame(mcols(genes_asis),  binding)
+    ## harmonize fd so each gene is only once
+    ## shorter <- data.frame(ensembl = unique(fd$ensembl),
+    ##                       class = get_
+                          
     
-
-    
-    
-    sml = ScoreMatrixList(c(covs, edge_pos[[curr_up]], edge_neg[[curr_down]]), genes_asis, bin.num = 50,
-                          is.noCovNA = TRUE, strand.aware = TRUE)
-    names(sml) <- c(names(covs), curr_up, curr_down)
-
-    sml <- intersectScoreMatrixList(sml, reorder = TRUE)
-
-    sml.scaled = scaleScoreMatrixList(sml)
-
-    found_row_idx <- dimnames(sml[[1]]@.Data)[[1]]
-    found_gene_id <- genes_asis$gene_id[as.numeric(as.character(found_row_idx))]
-
-    unique(genes_asis[found_gene_id,]$binding)
-    multiHeatMatrix(sml.scaled, xcoords = c(-250, 250), col = c("lightgray", "blue"),
-                    group = as.factor(genes_asis[found_gene_id,]$binding))
-
+    boxplot(logFC ~ V15, data = fd)
+    boxplot(logCPM ~ V15, data = fd)
+    aggregate(logFC ~ V15, summary, data = fd)
 }
 
 
-table(comb$class)
+
+    
+    ## ## comb <- comb[grepl('genes', comb$class),]
+    ## ## grab the whole gene, for those overlaps
+
+    ## ## query, subject
+    ## ## ranges <- subsetByOverlaps(query = genes_asis, subject = comb)
+
+    ## ## query, subject
+    ## hits <- findOverlaps(query = genes_asis, subject = comb)
 
 
-sml = ScoreMatrixList(c(covs, edge_pos, edge_neg), comb, bin.num = 50)
+    
+    ## overlapclass <- CharacterList(split(comb$class[subjectHits(hits)],
+    ##                                     queryHits(hits)))
 
-names(sml) <- c(names(edge_pos), names(edge_neg), names(covs))
+    ## get_longest_string <- function(x) {
+    ##     return(head(x[rev(order(nchar(x)))], 1))
+    ## }
+    
+    ## binding <- sapply(overlapclass, function(x) return(get_longest_string(x)))
 
-sml.scaled = scaleScoreMatrixList(sml)
+
+
+    ## mcols(genes_asis) <- DataFrame(mcols(genes_asis),  binding)
+    
+
+    
+    
+##     sml = ScoreMatrixList(c(covs, edge_pos[[curr_up]], edge_neg[[curr_down]]), genes_asis, bin.num = 50,
+##                           is.noCovNA = TRUE, strand.aware = TRUE)
+##     names(sml) <- c(names(covs), curr_up, curr_down)
+
+##     sml <- intersectScoreMatrixList(sml, reorder = TRUE)
+
+##     sml.scaled = scaleScoreMatrixList(sml)
+
+##     found_row_idx <- dimnames(sml[[1]]@.Data)[[1]]
+##     found_gene_id <- genes_asis$gene_id[as.numeric(as.character(found_row_idx))]
+
+##     unique(genes_asis[found_gene_id,]$binding)
+##     multiHeatMatrix(sml.scaled, xcoords = c(-250, 250), col = c("lightgray", "blue"),
+##                     group = as.factor(genes_asis[found_gene_id,]$binding))
+
+## }
+
+
+## table(comb$class)
+
+
+## sml = ScoreMatrixList(c(covs, edge_pos, edge_neg), comb, bin.num = 50)
+
+## names(sml) <- c(names(edge_pos), names(edge_neg), names(covs))
+
+## sml.scaled = scaleScoreMatrixList(sml)
 ```
 
 
 ```{r fig.width = 20, fig.height = 6}
-multiHeatMatrix(sml.scaled, xcoords = c(-250, 250), col = c("lightgray", "blue"),
-                clustfun = function(x) kmeans(x,
-                                              centers=6)$cluster,
-                clust.matrix = 7:8)
+## multiHeatMatrix(sml.scaled, xcoords = c(-250, 250), col = c("lightgray", "blue"),
+##                 clustfun = function(x) kmeans(x,
+##                                               centers=6)$cluster,
+##                 clust.matrix = 7:8)
+
+```
+
+Rather, segment genesets by diff expression, and work with that
+
+```{r}
+pos_signif <- edge_pos[[1]][edge_pos[[1]]$padj < 0.1]
+pos_ns <- edge_pos[[1]][edge_pos[[1]]$padj >= 0.1]
+neg_signif <- edge_neg[[1]][edge_neg[[1]]$padj < 0.1]
+neg_ns <- edge_neg[[1]][edge_neg[[1]]$padj >= 0.1]
+
+```
+
+### Serial chunked {.tabset .tabset-pills}
+
+```{r, fig.width = 18, fig.height = 6, results = 'asis'}
+
+cat('#### pos signif\n')
+pos_signif_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg),
+                                                           trim(resize(pos_signif, width = width(pos_signif)*1.20, fix = "center")),
+                                                           bin.num = 100,
+                                                           is.noCovNA = TRUE,
+                                                           strand.aware = TRUE,
+                                                           cores = NTHREADS),
+                                           reorder = TRUE)
+
+multiHeatMatrix(pos_signif_sml,
+                order = TRUE,
+                clustfun = function(x) kmeans(x, centers =2)$cluster,
+                col = viridis(9),
+                winsorize = c(1,99),
+                clust.matrix = 1:3)
+
+cat('#### pos not signif\n')
+
+pos_ns_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg),
+                                trim(resize(pos_ns, width = width(pos_ns)*1.20, fix = "center")),
+                                bin.num = 100,
+                                is.noCovNA = TRUE,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+multiHeatMatrix(pos_ns_sml,
+                order = TRUE,
+                clustfun = function(x) kmeans(x, centers =2)$cluster,
+                col = viridis(9),
+                winsorize = c(1,99),
+                clust.matrix = 1:3)
+
+cat('#### neg signif\n')
+
+neg_signif_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg),
+                                trim(resize(neg_signif, width = width(neg_signif)*1.20, fix = "center")),
+                                bin.num = 100,
+                                is.noCovNA = TRUE,
+                                strand.aware = TRUE,
+                cores = NTHREADS), reorder = TRUE)
+
+multiHeatMatrix(neg_signif_sml,
+                order = TRUE,
+                clustfun = function(x) kmeans(x, centers =2)$cluster,
+                col = viridis(9),
+                winsorize = c(1,99),
+                clust.matrix = 1:3)
+
+cat('#### neg not signif\n')
+
+neg_ns_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg),
+                                trim(resize(neg_ns, width = width(neg_ns)*1.20, fix = "center")),
+                                bin.num = 100,
+                                is.noCovNA = TRUE,
+                                strand.aware = TRUE,
+                                cores = NTHREADS), reorder = TRUE)
+multiHeatMatrix(neg_ns_sml,
+                order = TRUE,
+                clustfun = function(x) kmeans(x, centers =2)$cluster,
+                col = viridis(9),
+                winsorize = c(1,99),
+                clust.matrix = 1:3)
+
+```
+
+Maybe rbind those and group them / label them manually?
+
+These are highlighting 1h vs control, only
+
+```{r, fig.width = 20, fig.height = 10}
+joint_sml <- pos_signif_sml
+
+for (item in names(joint_sml)) {
+    joint_sml[[item]]@.Data <- rbind(pos_signif_sml[[item]]@.Data,
+                                     pos_ns_sml[[item]]@.Data,
+                                     neg_signif_sml[[item]]@.Data,
+                                     neg_ns_sml[[item]]@.Data
+                                     )
+}
+
+multiHeatMatrix(joint_sml,
+                order = TRUE,
+                ## clust = function(x) kmeans(x, centers = 6)$cluster,
+                group = as.factor(c(rep('pos', nrow(pos_signif_sml[[1]])),
+                          rep('pos_ns', nrow(pos_ns_sml[[1]])),
+                          rep('neg', nrow(neg_signif_sml[[1]])),
+                          rep('neg_ns', nrow(neg_ns_sml[[1]])))),
+                col = viridis(9),
+                winsorize = c(1,99))
+
+```
+
+What about 48h to 6h?
+
+
+```{r}
+item <- 'treated_48h-treated_6h_up'
+pos_signif <- edge_pos[[item]][edge_pos[[item]]$padj < 0.1]
+pos_ns <- edge_pos[[item]][edge_pos[[item]]$padj >= 0.1]
+neg_signif <- edge_neg[[item]][edge_neg[[item]]$padj < 0.1]
+neg_ns <- edge_neg[[item]][edge_neg[[item]]$padj >= 0.1]
+
+```
+
+
+```{r, fig.width = 18, fig.height = 6, results = 'asis'}
+
+cat('#### pos signif\n')
+pos_signif_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg),
+                                                           trim(resize(pos_signif, width = width(pos_signif)*1.20, fix = "center")),
+                                                           bin.num = 100,
+                                                           is.noCovNA = TRUE,
+                                                           strand.aware = TRUE,
+                                                           cores = NTHREADS),
+                                           reorder = TRUE)
+
+multiHeatMatrix(pos_signif_sml,
+                order = TRUE,
+                clustfun = function(x) kmeans(x, centers =2)$cluster,
+                col = viridis(9),
+                winsorize = c(1,99),
+                clust.matrix = 1:3)
+
+cat('#### pos not signif\n')
+
+pos_ns_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg),
+                                trim(resize(pos_ns, width = width(pos_ns)*1.20, fix = "center")),
+                                bin.num = 100,
+                                is.noCovNA = TRUE,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+multiHeatMatrix(pos_ns_sml,
+                order = TRUE,
+                clustfun = function(x) kmeans(x, centers =2)$cluster,
+                col = viridis(9),
+                winsorize = c(1,99),
+                clust.matrix = 1:3)
+
+cat('#### neg signif\n')
+
+neg_signif_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg),
+                                trim(resize(neg_signif, width = width(neg_signif)*1.20, fix = "center")),
+                                bin.num = 100,
+                                is.noCovNA = TRUE,
+                                strand.aware = TRUE,
+                cores = NTHREADS), reorder = TRUE)
+
+multiHeatMatrix(neg_signif_sml,
+                order = TRUE,
+                clustfun = function(x) kmeans(x, centers =2)$cluster,
+                col = viridis(9),
+                winsorize = c(1,99),
+                clust.matrix = 1:3)
+
+cat('#### neg not signif\n')
+
+neg_ns_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg),
+                                trim(resize(neg_ns, width = width(neg_ns)*1.20, fix = "center")),
+                                bin.num = 100,
+                                is.noCovNA = TRUE,
+                                strand.aware = TRUE,
+                                cores = NTHREADS), reorder = TRUE)
+multiHeatMatrix(neg_ns_sml,
+                order = TRUE,
+                clustfun = function(x) kmeans(x, centers =2)$cluster,
+                col = viridis(9),
+                winsorize = c(1,99),
+                clust.matrix = 1:3)
+
+```
+
+Maybe rbind those and group them / label them manually?
+
+These are highlighting 1h vs control, only
+
+```{r, fig.width = 20, fig.height = 10}
+joint_sml <- pos_signif_sml
+
+for (item in names(joint_sml)) {
+    joint_sml[[item]]@.Data <- rbind(pos_signif_sml[[item]]@.Data,
+                                     pos_ns_sml[[item]]@.Data,
+                                     neg_signif_sml[[item]]@.Data,
+                                     neg_ns_sml[[item]]@.Data
+                                     )
+}
+
+multiHeatMatrix(joint_sml,
+                order = TRUE,
+                ## clust = function(x) kmeans(x, centers = 6)$cluster,
+                group = as.factor(c(rep('pos', nrow(pos_signif_sml[[1]])),
+                          rep('pos_ns', nrow(pos_ns_sml[[1]])),
+                          rep('neg', nrow(neg_signif_sml[[1]])),
+                          rep('neg_ns', nrow(neg_ns_sml[[1]])))),
+                col = viridis(9),
+                winsorize = c(1,99))
 
 ```
 
