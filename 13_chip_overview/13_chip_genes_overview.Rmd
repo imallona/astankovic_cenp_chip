@@ -56,7 +56,7 @@ DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
 PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
 
 ## if downsampled, only chr19
-DOWNSAMPLE <- FALSE
+DOWNSAMPLE <- TRUE
 
 BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
 ```
@@ -98,18 +98,6 @@ if (DOWNSAMPLE) {
 Overlapping genes/features removed!
 
 ```{r}
-## genes_proms$symbol <- mapIds(org.Mm.eg.db,
-##                            keys = genes_proms$gene_id,
-##                            column = "SYMBOL",
-##                            keytype = "ENTREZID",
-##                            multiVals = "first")
-
-## genes_proms$ensembl <- mapIds(org.Mm.eg.db,
-##                               keys = genes_proms$gene_id,
-##                               column = "ENSEMBL",
-##                               keytype = "ENTREZID",
-##                               multiVals = "first")
-
 genes_asis$ensembl <- mapIds(org.Mm.eg.db,
                               keys = genes_asis$gene_id,
                               column = "ENSEMBL",
@@ -182,7 +170,7 @@ sml_genes <- ScoreMatrixList(covs, windows = genes_asis,
 
 
 ```{r}
-NUM_CLUSTERS <- 5
+NUM_CLUSTERS <- 4
 ```
 
 
@@ -2357,6 +2345,8 @@ get(gse)
 
 ## GSE125068 {.tabset .tabset-pills}
 
+The one with expression, CBP, K27ac, Pol2 etc (but not K4me3)
+
 This is mm10, but with unconsistent chr names
 
 ```{bash, eval = FALSE}
@@ -2448,6 +2438,8 @@ gse <- 'GSE125068'
 fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*bw$'))
 
 fns <- grep('riboRNA', fns, value = TRUE, invert = TRUE)
+
+fns
 ## ?ScoreMatrixList
 
 ## the all_proms is already downsampled
@@ -2461,22 +2453,36 @@ fns <- grep('riboRNA', fns, value = TRUE, invert = TRUE)
 bws <- list()
 
 for (fn in fns) {
+    print(fn)
     bws[[basename(fn)]] <- tryCatch({
         ScoreMatrixBin(fn, windows = genes_asis,
                     type = "auto",
                     bin.num = 50,
                     strand.aware = TRUE)
     }, error = function(x) {
-        tmp <- readBigWig(fn, windows = genes_asis_ncbi,
-                          type = "auto",  strand.aware = TRUE)
-        
-        seqlevelsStyle(tmp) <- "UCSC"
-        bws[[basename(fn)]] <- ScoreMatrixBin(tmp,
-                                              genes_asis_ncbi, #genes_asis,
-                                              bin.num = 100,
-                                              type = "auto",  strand.aware = TRUE)
+        tryCatch({
+            tmp <- readBigWig(fn, windows = genes_asis_ncbi,
+                              type = "auto",  strand.aware = TRUE)
+            
+            seqlevelsStyle(tmp) <- "UCSC"
+            bws[[basename(fn)]] <- ScoreMatrixBin(tmp,
+                                                  genes_asis, #genes_asis_ncbi,
+                                                  bin.num = 100,
+                                                  type = "auto",  strand.aware = TRUE)
 
-        rm(tmp)
+            rm(tmp)
+        }, error = function(x) {
+
+            tmp <- readBigWig(fn, windows = genes_asis_ncbi,
+                              type = "auto",  strand.aware = TRUE)
+            
+            seqlevelsStyle(tmp) <- "UCSC"
+            bws[[basename(fn)]] <- ScoreMatrixBin(tmp,
+                                                  genes_asis_ncbi,
+                                                  bin.num = 100,
+                                                  type = "auto",  strand.aware = TRUE)
+            
+        })
     })    
 }
 
@@ -2633,7 +2639,9 @@ get(gse)
 
 ## GSE85873 {.tabset .tabset-pills}
 
-These are peaks, not signal. mm10, ncbi-style chrom names. We'll keep the H3K4me1, only.
+This is the one with H3K4me3 and H3K4me1
+
+These are peaks, not signal. mm10, ncbi-style chrom names. 
 
 ```{r}
 gse <- 'GSE85873'
@@ -2641,7 +2649,8 @@ gse <- 'GSE85873'
 
 fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*gz$'))
 
-fns <- grep('H3K4me1', fns, value = TRUE)
+fns
+## fns <- grep('H3K4me', fns, value = TRUE)
 
 peaks <- lapply(fns, function(x) readGeneric(x, header = TRUE, meta.col = list(score = 4)))
 names(peaks) <- basename(fns)
@@ -2661,10 +2670,10 @@ if (DOWNSAMPLE){
     }
 }
 
-## names(peaks) <- c('K4me3_wt_HC_1', 'K4me3_wt_NE_1', 'K4me3_wt_HC_2', 'K4me3_wt_NE_2',
-##                   'K4me1_WT')
+names(peaks) <- c('K4me3_wt_HC_1', 'K4me3_wt_NE_1', 'K4me3_wt_HC_2', 'K4me3_wt_NE_2',
+                  'K4me1_WT')
 
-names(peaks) <- c('K4me1_WT')
+## names(peaks) <- c('K4me1_WT')
 peaks <- ScoreMatrixList(peaks,
                          genes_asis,
                          bin.num = 50,
@@ -3136,10 +3145,15 @@ if (DOWNSAMPLE) {
 names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(names(covs)))
 meta <- meta[meta$Run %in% names(covs),]
 rownames(meta) <- meta$Run
-names(covs) <- sprintf('`%s` %s\n%s\n%s',  meta[names(covs), 'chip_antibody'],
+names(covs) <- sprintf('H3.3 `%s` %s\n%s\n%s',  meta[names(covs), 'chip_antibody'],
                        names(covs), meta[names(covs), 'Treatment'],
                        meta[names(covs), 'tissue.cell_type'])
 
+```
+
+
+```{r}
+assign(gse, covs)
 ```
 
 
@@ -3297,9 +3311,6 @@ test %>% group_by(sample, cluster, pos) %>%
 
 
 
-```{r}
-assign(gse, covs)
-```
 
 
 
@@ -3376,8 +3387,13 @@ test %>% group_by(sample, cluster, pos) %>%
 ```
 
 
-```{r}
-saveRDS(test, file = 'test.rds')
+```{r, cache = FALSE}
+saveRDS(test, file = 'test_another.rds')
+
+## test <- readRDS('test_another.rds')
+## unique(test$sample)
+
+## stop('here')
 
 ```
 
@@ -3385,22 +3401,29 @@ saveRDS(test, file = 'test.rds')
 
 ```{r}
 test$category <- 'else'
+test$category[grepl('ChIP_H3K27ac_Sal', test$sample)] <- 'eg_K27ac'
 test$category[grepl('cenp', test$sample)] <- 'eg_CENP'
 test$category[grepl('ATAC', test$sample)] <- 'eg_ATAC'
 test$category[grepl('K4me3', test$sample)] <- 'eg_K4me3'
 test$category[grepl('K4me1', test$sample)] <- 'eg_K4me1'
+test$category[grepl('K27me3', test$sample)] <- 'eg_K27me3'
+
+
 test$category[grepl('Pol2', test$sample)] <- 'ex_Pol2'
+test$category[grepl('PolII', test$sample)] <- 'ex_Pol2'
+
 test$category[grepl('nuRNA', test$sample)] <- 'ex_nuRNA'
 test$category[grepl('riboRNA', test$sample)] <- 'ex_riboRNA'
 test$category[grepl('cenp_liver', test$sample)] <- 'eg_CENP_liver'
 test$category[grepl('CREB', test$sample)] <- 'eg_CREB'
+test$category[grepl('CBP', test$sample)] <- 'eg_CBP'
 test$category[grepl('SRF', test$sample)] <- 'eg_SRF'
 test$category[grepl('NeuN', test$sample)] <- 'eg_H3.3'
 test$category[grepl('H3.3', test$sample)] <- 'eg_H3.3'
 test$category[grepl('SRR2061076', test$sample)] <- 'eg_H3.3'
 test$category[grepl('CpGi', test$sample)] <- 'eg_CpGi'
 
-test <- test[test$category != 'ex_riboRNA',]
+## test <- test[test$category != 'ex_riboRNA',]
 ## unique(test[test$category == 'else', 'sample'])
 
 ## test$panel <- ifelse(grepl('^eg_', test$category), yes = 'chromatin', no = 'RNA')
@@ -3408,6 +3431,8 @@ test <- test[test$category != 'ex_riboRNA',]
 test$panel[grepl('K4', test$category)] <- 'active'
 test$panel[grepl('Pol2', test$category)] <- 'RNA'
 test$panel[grepl('ATAC', test$category)] <- 'active'
+test$panel[grepl('K27ac', test$category)] <- 'active'
+test$panel[grepl('K27me3', test$category)] <- 'inactive'
 
 test$panel[grepl('H3.3', test$category)] <- 'H3.3'
 
@@ -3416,6 +3441,7 @@ test$panel[grepl('RNA', test$category)] <- 'RNA'
 
 test$panel[grepl('CENP', test$category)] <- 'CENP'
 
+test$panel[grepl('CBP', test$category)] <- 'CBP'
 test$panel[grepl('SRF', test$category)] <- 'SRF/CREB'
 test$panel[grepl('CREB', test$category)] <- 'SRF/CREB'
 
@@ -3424,19 +3450,31 @@ test$panel[grepl('CpGi', test$category)] <- 'CpGi'
 test$category <- gsub('eg_', '', gsub('ex_', '', test$category))
 
 table(test$category, test$panel, useNA = 'always')
+head(test[test$category == 'else',])
 ```
 
+```{r}
+unique(test$category)
+selected <- c('CENP', 'K4me3', 'K27ac', 'Pol2', 'CBP', 'K27me3')
+selected %in% test$category
+test <- test[test$category %in% selected,]
 
+test$category <- as.factor(test$category, levels = selected)
+```
+
+```{r}
+test$value[is.na(test$value)] <- 0
+```
 
 ```{r, fig.width = 10, fig.height = 10}
 
 set.seed(134)
-test[sample(1:nrow(test), size = 1e5),] %>% 
-    ggplot(aes(x = pos, y = value, color = category, group.by = sample)) +
+test[sample(1:nrow(test), size = 2e5),] %>% 
+    ggplot(aes(x = pos, y = value, color = cluster, group.by = sample)) +
     geom_smooth(method = "loess", se = FALSE) +
-    facet_grid(panel~cluster, scales = "free") +
+    facet_grid(category~cluster, scales = "free") +
     theme_bw() +
-    scale_x_discrete('normalized position',
+    scale_x_discrete('normalized genebody position',
                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -3458,7 +3496,47 @@ test$status[grepl('un', test$sample)] <- 'control'
 test$status[grepl('KCl', test$sample)] <- 'control'
 test$status[grepl('no stimulation', test$sample)] <- 'control'
 test$status[grepl('Normally', test$sample)] <- 'control'
+test$status[test$sample %in% c('GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',
+                               'GSM2442457_N-K27me3-1.bedGraph.gz')] <- 'control'
+
+test$status[grepl('wt_NE', test$sample)] <- 'activated'
+
 unique(test[test$status == 'else', 'sample'])
+table(test$sample, test$status)
+```
+
+
+```{r, fig.width = 10, fig.height = 10}
+set.seed(134)
+test[sample(1:nrow(test), size = 2e5),] %>% 
+    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    geom_smooth(method = "loess", se = FALSE) +
+    facet_grid(category~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+```{r, fig.width = 10, fig.height = 10}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = median)) %>% 
+    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    geom_line() +
+    facet_grid(category~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
 ```
 
 
