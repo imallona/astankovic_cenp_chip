@@ -170,7 +170,7 @@ sml_genes <- ScoreMatrixList(covs, windows = genes_asis,
 
 
 ```{r}
-NUM_CLUSTERS <- 4
+NUM_CLUSTERS <- 10
 ```
 
 
@@ -3450,7 +3450,7 @@ test$panel[grepl('CpGi', test$category)] <- 'CpGi'
 test$category <- gsub('eg_', '', gsub('ex_', '', test$category))
 
 table(test$category, test$panel, useNA = 'always')
-head(test[test$category == 'else',])
+## head(test[test$category == 'else',])
 ```
 
 ```{r}
@@ -3459,27 +3459,27 @@ selected <- c('CENP', 'K4me3', 'K27ac', 'Pol2', 'CBP', 'K27me3')
 selected %in% test$category
 test <- test[test$category %in% selected,]
 
-test$category <- as.factor(test$category, levels = selected)
+test$category <- factor(test$category, levels = selected)
 ```
 
 ```{r}
 test$value[is.na(test$value)] <- 0
 ```
 
-```{r, fig.width = 10, fig.height = 10}
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
 
-set.seed(134)
-test[sample(1:nrow(test), size = 2e5),] %>% 
-    ggplot(aes(x = pos, y = value, color = cluster, group.by = sample)) +
-    geom_smooth(method = "loess", se = FALSE) +
-    facet_grid(category~cluster, scales = "free") +
-    theme_bw() +
-    scale_x_discrete('normalized genebody position',
-                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) +
-    scale_color_brewer(palette="Set1") +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+<!-- set.seed(134) -->
+<!-- test[sample(1:nrow(test), size = 2e5),] %>%  -->
+<!--     ggplot(aes(x = pos, y = value, color = cluster, group.by = sample)) + -->
+<!--     geom_smooth(method = "loess", se = FALSE) + -->
+<!--     facet_grid(category~cluster, scales = "free") + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized genebody position', -->
+<!--                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
 
-```
+<!-- ``` -->
 
 
 ```{r}
@@ -3505,20 +3505,23 @@ unique(test[test$status == 'else', 'sample'])
 table(test$sample, test$status)
 ```
 
+Sampling, loess smoothing
 
 ```{r, fig.width = 10, fig.height = 10}
 set.seed(134)
 test[sample(1:nrow(test), size = 2e5),] %>% 
     ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
-    geom_smooth(method = "loess", se = FALSE) +
+    geom_smooth(method = "loess", se = FALSE, span = 0.15) +
     facet_grid(category~cluster, scales = "free") +
     theme_bw() +
     scale_x_discrete('normalized genebody position',
-                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) +
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
+
+Medians
 
 ```{r, fig.width = 10, fig.height = 10}
 set.seed(134)
@@ -3529,16 +3532,69 @@ test %>%
     summarise_at(vars(value),
                list(value = median)) %>% 
     ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
-    geom_line() +
-    facet_grid(category~cluster, scales = "free") +
+    geom_line(lwd = 1) +
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
     theme_bw() +
     scale_x_discrete('normalized genebody position',
-                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) +
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
     scale_color_brewer(palette="Set1") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 ```
 
+Winsorized, medians
+
+
+```{r}
+winsorize<-function(mat, rang){
+  hi.th <- quantile(mat, rang[2]/100,na.rm = TRUE)
+  lo.th <- quantile(mat, rang[1]/100,na.rm = TRUE)
+  mat[mat>hi.th] = hi.th
+  mat[mat<lo.th] = lo.th
+  return(mat)
+}
+
+```
+
+```{r, fig.width = 10, fig.height = 10}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = function(x) median(winsorize(x, rang = c(1, 99))))) %>% 
+    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    geom_line(lwd = 1) +
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
+Even more winsorized, medians
+
+```{r, fig.width = 10, fig.height = 10}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = function(x) median(winsorize(x, rang = c(2, 98))))) %>% 
+    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    geom_line(lwd = 1) +
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
 
 
 ```{r}
