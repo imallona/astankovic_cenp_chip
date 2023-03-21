@@ -170,7 +170,7 @@ sml_genes <- ScoreMatrixList(covs, windows = genes_asis,
 
 
 ```{r}
-NUM_CLUSTERS <- 10
+NUM_CLUSTERS <- 8
 ```
 
 
@@ -1480,300 +1480,300 @@ for (fn in edge_fns) {
 
 
 
-```{bash runmemanually_not_finished, eval = FALSE}
-mkdir -p bed
-ARMOR=/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10
-COVS=/home/imallona/cenp_chip/merged_replicates/
-BEDTOOLS=~/soft/bedtools/bedtools-2.29.2/bin/bedtools
+<!-- ```{bash runmemanually_not_finished, eval = FALSE} -->
+<!-- mkdir -p bed -->
+<!-- ARMOR=/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10 -->
+<!-- COVS=/home/imallona/cenp_chip/merged_replicates/ -->
+<!-- BEDTOOLS=~/soft/bedtools/bedtools-2.29.2/bin/bedtools -->
 
-sort -k1,1 -k2,2n bed/genes.bed > sorted
-mv sorted bed/genes.bed
+<!-- sort -k1,1 -k2,2n bed/genes.bed > sorted -->
+<!-- mv sorted bed/genes.bed -->
 
-for edge in edgeR_dge_results_treatmenttreated_1h-treatmentcontrol_edge.bed \
-                edgeR_dge_results_treatmenttreated_48h-treatmenttreated_6h_edge.bed \
-                edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h_edge.bed
-do
+<!-- for edge in edgeR_dge_results_treatmenttreated_1h-treatmentcontrol_edge.bed \ -->
+<!--                 edgeR_dge_results_treatmenttreated_48h-treatmenttreated_6h_edge.bed \ -->
+<!--                 edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h_edge.bed -->
+<!-- do -->
 
-    echo "$edge"
-    edge=bed/"$edge"
+<!--     echo "$edge" -->
+<!--     edge=bed/"$edge" -->
 
-    ## keeping the logFC column, plus sorting
-    awk '{OFS=FS="\t"; print $1,$2,$3,$9,$10}' "$edge" | sort -k1,1 -k2,2n > narrower
-    # mv narrower "$edge"
+<!--     ## keeping the logFC column, plus sorting -->
+<!--     awk '{OFS=FS="\t"; print $1,$2,$3,$9,$10}' "$edge" | sort -k1,1 -k2,2n > narrower -->
+<!--     # mv narrower "$edge" -->
 
-    mkdir -p closest
-    $BEDTOOLS closest -D a \
-              -a bed/genes.bed \
-              -b narrower \
-              -t first -d > closest/$(basename "$edge" .bed).gene.closest
+<!--     mkdir -p closest -->
+<!--     $BEDTOOLS closest -D a \ -->
+<!--               -a bed/genes.bed \ -->
+<!--               -b narrower \ -->
+<!--               -t first -d > closest/$(basename "$edge" .bed).gene.closest -->
 
-    rm narrower
+<!--     rm narrower -->
     
-done
+<!-- done -->
 
-## check the sample swaps!!
+<!-- ## check the sample swaps!! -->
 
-for chip in chip_HC_2_3_cov_bga.bedgraph.gz \
-                chip_HC_1_cov_bga.bedgraph.gz \
-                chip_PTZ_2_3_cov_bga.bedgraph.gz \
-                chip_PTZ_1_cov_bga.bedgraph.gz 
-do
+<!-- for chip in chip_HC_2_3_cov_bga.bedgraph.gz \ -->
+<!--                 chip_HC_1_cov_bga.bedgraph.gz \ -->
+<!--                 chip_PTZ_2_3_cov_bga.bedgraph.gz \ -->
+<!--                 chip_PTZ_1_cov_bga.bedgraph.gz  -->
+<!-- do -->
 
-    echo "$chip"
-    chip=$COVS/"$chip"
+<!--     echo "$chip" -->
+<!--     chip=$COVS/"$chip" -->
 
-    ## keeping the logFC column, plus sorting
-    zcat "$chip" | grep -P "chr[0-9XY]{1,2}" | sort -k1,1 -k2,2n > sorted
-
-
-    ## closest upstream, notice the fu flag
-    ## grep canonical chromosomes
-    $BEDTOOLS closest -fu -D a \
-              -a bed/genes.bed \
-              -b sorted \
-              -t first > closest/"$(basename $chip .bed)".gene.closest
-
-    rm sorted    
-done
-
-```
+<!--     ## keeping the logFC column, plus sorting -->
+<!--     zcat "$chip" | grep -P "chr[0-9XY]{1,2}" | sort -k1,1 -k2,2n > sorted -->
 
 
+<!--     ## closest upstream, notice the fu flag -->
+<!--     ## grep canonical chromosomes -->
+<!--     $BEDTOOLS closest -fu -D a \ -->
+<!--               -a bed/genes.bed \ -->
+<!--               -b sorted \ -->
+<!--               -t first > closest/"$(basename $chip .bed)".gene.closest -->
 
-```{r}
+<!--     rm sorted     -->
+<!-- done -->
 
-fns <- list.files('closest', '*closest')
+<!-- ``` -->
 
-clos <- list()
 
-for (fn in fns) {
-    tmp  <- read.table(file.path('closest', fn))
 
-    head(tmp)
-    ## filterout high distances
-    tmp[abs(tmp[,ncol(tmp)]) >= 2000, 'V12'] <- NA
+<!-- ```{r} -->
+
+<!-- fns <- list.files('closest', '*closest') -->
+
+<!-- clos <- list() -->
+
+<!-- for (fn in fns) { -->
+<!--     tmp  <- read.table(file.path('closest', fn)) -->
+
+<!--     head(tmp) -->
+<!--     ## filterout high distances -->
+<!--     tmp[abs(tmp[,ncol(tmp)]) >= 2000, 'V12'] <- NA -->
     
    
-   ## head(tmp)
-   if (grepl('chip', fn)) {
+<!--    ## head(tmp) -->
+<!--    if (grepl('chip', fn)) { -->
        
-       tmp <- data.frame( value = tmp$V12,
-                         gene = tmp$V8,
-                         id = fn)
-   } else if (grepl('edge', fn)) {
-       tmp <- data.frame( value = tmp$V12,
-                         gene = tmp$V8,
-                         id = fn)
-   }
-   clos[[fn]] <- tmp
-}
+<!--        tmp <- data.frame( value = tmp$V12, -->
+<!--                          gene = tmp$V8, -->
+<!--                          id = fn) -->
+<!--    } else if (grepl('edge', fn)) { -->
+<!--        tmp <- data.frame( value = tmp$V12, -->
+<!--                          gene = tmp$V8, -->
+<!--                          id = fn) -->
+<!--    } -->
+<!--    clos[[fn]] <- tmp -->
+<!-- } -->
 
-clos_wide <- do.call(cbind.data.frame, clos)
-str(clos_wide)
-colnames(clos_wide)
+<!-- clos_wide <- do.call(cbind.data.frame, clos) -->
+<!-- str(clos_wide) -->
+<!-- colnames(clos_wide) -->
 
-## ## install.packages('GGally')
-## library("GGally")
-## ggpairs(clos_wide[,grep('value', colnames(clos_wide))])+
-##     theme_bw()
+<!-- ## ## install.packages('GGally') -->
+<!-- ## library("GGally") -->
+<!-- ## ggpairs(clos_wide[,grep('value', colnames(clos_wide))])+ -->
+<!-- ##     theme_bw() -->
 
-```
+<!-- ``` -->
 
-# ggpairs {.tabset .tabset-pills}
+<!-- # ggpairs {.tabset .tabset-pills} -->
 
-```{r, fig.width = 10, fig.height = 7, results = 'asis', cache = FALSE}
+<!-- ```{r, fig.width = 10, fig.height = 7, results = 'asis', cache = FALSE} -->
 
-for (test in grep('edge', names(clos), value = TRUE)) {
-    cat ('## ', test, '\n\n')
+<!-- for (test in grep('edge', names(clos), value = TRUE)) { -->
+<!--     cat ('## ', test, '\n\n') -->
     
-    curr <- clos[c(grep('chip', names(clos), value =  TRUE), test)]
+<!--     curr <- clos[c(grep('chip', names(clos), value =  TRUE), test)] -->
 
-    wide <- do.call(cbind.data.frame, curr)
+<!--     wide <- do.call(cbind.data.frame, curr) -->
 
-    logfc_id <- paste0(test, '.value')
+<!--     logfc_id <- paste0(test, '.value') -->
     
-    wide$test <- 'ns'
-    wide$test[wide[,logfc_id] < -1] <- 'down'
-    wide$test[wide[, logfc_id] >= 1] <- 'up'
+<!--     wide$test <- 'ns' -->
+<!--     wide$test[wide[,logfc_id] < -1] <- 'down' -->
+<!--     wide$test[wide[, logfc_id] >= 1] <- 'up' -->
 
 
-    names(wide) <- gsub('_cov_bga.bedgraph.gz.gene.closest', '', names(wide))
-    names(wide) <- gsub('edgeR_dge_results_treatment', '', names(wide))
-    names(wide) <- gsub('edge.gene.closest', '', names(wide))
+<!--     names(wide) <- gsub('_cov_bga.bedgraph.gz.gene.closest', '', names(wide)) -->
+<!--     names(wide) <- gsub('edgeR_dge_results_treatment', '', names(wide)) -->
+<!--     names(wide) <- gsub('edge.gene.closest', '', names(wide)) -->
 
-    names(wide)
+<!--     names(wide) -->
 
-    ## install.packages('GGally')
+<!--     ## install.packages('GGally') -->
 
-    plot(log1p(wide[,c(grep('value', colnames(wide), value = TRUE))]))
+<!--     plot(log1p(wide[,c(grep('value', colnames(wide), value = TRUE))])) -->
     
-    print(ggpairs(wide[,c(grep('value', colnames(wide), value = TRUE))],
-            mapping=ggplot2::aes(col = wide$test))+
-        theme_bw() +
-        scale_x_continuous(trans='log10') +
-        scale_y_continuous(trans = 'log10'))
+<!--     print(ggpairs(wide[,c(grep('value', colnames(wide), value = TRUE))], -->
+<!--             mapping=ggplot2::aes(col = wide$test))+ -->
+<!--         theme_bw() + -->
+<!--         scale_x_continuous(trans='log10') + -->
+<!--         scale_y_continuous(trans = 'log10')) -->
 
-    cat('\n\n')
-    ## scale_y_sqrt() +
-    ##     scale_x_sqrt()
-}
-```
+<!--     cat('\n\n') -->
+<!--     ## scale_y_sqrt() + -->
+<!--     ##     scale_x_sqrt() -->
+<!-- } -->
+<!-- ``` -->
 
-# Binned {.tabset .tabset-pills}
+<!-- # Binned {.tabset .tabset-pills} -->
 
-```{r, fig.width = 6, fig.height = 6, results = 'asis'}
+<!-- ```{r, fig.width = 6, fig.height = 6, results = 'asis'} -->
 
-for (test in grep('edge', names(clos), value = TRUE)) {
-    cat ('## ', test, ' {.tabset .tabset-pills}\n\n')
+<!-- for (test in grep('edge', names(clos), value = TRUE)) { -->
+<!--     cat ('## ', test, ' {.tabset .tabset-pills}\n\n') -->
     
-    curr <- clos[c(grep('chip', names(clos), value =  TRUE), test)]
+<!--     curr <- clos[c(grep('chip', names(clos), value =  TRUE), test)] -->
 
-    names(curr)
-    wide <- do.call(cbind.data.frame, curr)
-
-
-    logfc_id <- paste0(test, '.value')
+<!--     names(curr) -->
+<!--     wide <- do.call(cbind.data.frame, curr) -->
 
 
-    k <- ceiling(max(abs(wide[, logfc_id]), na.rm = TRUE))
+<!--     logfc_id <- paste0(test, '.value') -->
+
+
+<!--     k <- ceiling(max(abs(wide[, logfc_id]), na.rm = TRUE)) -->
     
     
-    wide$logfc_bin <- cut(wide[, logfc_id], breaks = seq(-k, +k, by = 2))
+<!--     wide$logfc_bin <- cut(wide[, logfc_id], breaks = seq(-k, +k, by = 2)) -->
 
-    ## colnames(wide)
-    table(wide$logfc_bin)
+<!--     ## colnames(wide) -->
+<!--     table(wide$logfc_bin) -->
     
-    names(wide) <- gsub('_cov_bga.bedgraph.gz.gene.closest', '', names(wide))
-    names(wide) <- gsub('edgeR_dge_results_treatment', '', names(wide))
-    names(wide) <- gsub('edge.gene.closest', '', names(wide))
-    names(wide) <- gsub('-', '_vs', names(wide))
+<!--     names(wide) <- gsub('_cov_bga.bedgraph.gz.gene.closest', '', names(wide)) -->
+<!--     names(wide) <- gsub('edgeR_dge_results_treatment', '', names(wide)) -->
+<!--     names(wide) <- gsub('edge.gene.closest', '', names(wide)) -->
+<!--     names(wide) <- gsub('-', '_vs', names(wide)) -->
 
-    names(wide)
+<!--     names(wide) -->
     
-    names(wide)[grep('treated.*value', names(wide))] <- 'logFC'
+<!--     names(wide)[grep('treated.*value', names(wide))] <- 'logFC' -->
 
 
-    ## head(wide)
+<!--     ## head(wide) -->
 
-    cat('### chip HC 1 vs logfc bin \n\n')
-    print(ggplot(wide, aes(x = logfc_bin, y =  chip_PTZ_1.value)) +
-          geom_point(alpha = 0.1, size = 1) +
-          geom_point() +
-          geom_violin() +
-          theme_bw() +
-          scale_y_continuous(trans='log1p') +
-          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-          xlab('expression logFC') +
-          stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+
-          stat_summary(fun= function(x) mean(x) - sd(x),
-                       geom="point", shape=18, size=3, color="blue", fill="blue") +
-          stat_summary(fun= function(x) mean(x) + sd(x),
-                       geom="point", shape=18, size=3, color="blue", fill="blue")
+<!--     cat('### chip HC 1 vs logfc bin \n\n') -->
+<!--     print(ggplot(wide, aes(x = logfc_bin, y =  chip_PTZ_1.value)) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           geom_point() + -->
+<!--           geom_violin() + -->
+<!--           theme_bw() + -->
+<!--           scale_y_continuous(trans='log1p') + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') + -->
+<!--           stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+ -->
+<!--           stat_summary(fun= function(x) mean(x) - sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") + -->
+<!--           stat_summary(fun= function(x) mean(x) + sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") -->
           
-          )
-    cat('\n\n')
+<!--           ) -->
+<!--     cat('\n\n') -->
 
-    cat('### chip PTZ 1 vs logfc bin \n\n')
-    print(ggplot(wide, aes(x = logfc_bin, y =  chip_HC_1.value)) +
-          geom_point(alpha = 0.1, size = 1) +
-          ## geom_point() +
-          geom_violin() +
-          theme_bw() +
-          scale_y_continuous(trans='log1p') +
-          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-          xlab('expression logFC') +
-          stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+
-          stat_summary(fun= function(x) mean(x) - sd(x),
-                       geom="point", shape=18, size=3, color="blue", fill="blue") +
-          stat_summary(fun= function(x) mean(x) + sd(x),
-                       geom="point", shape=18, size=3, color="blue", fill="blue")
+<!--     cat('### chip PTZ 1 vs logfc bin \n\n') -->
+<!--     print(ggplot(wide, aes(x = logfc_bin, y =  chip_HC_1.value)) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           ## geom_point() + -->
+<!--           geom_violin() + -->
+<!--           theme_bw() + -->
+<!--           scale_y_continuous(trans='log1p') + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') + -->
+<!--           stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+ -->
+<!--           stat_summary(fun= function(x) mean(x) - sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") + -->
+<!--           stat_summary(fun= function(x) mean(x) + sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") -->
           
-          )
+<!--           ) -->
 
-    cat('\n\n')
+<!--     cat('\n\n') -->
 
-    ## install.packages('ggallin')
-    cat('### chip PTZ 1 - chip HC_1 vs logfc bin \n\n')
-    print(ggplot(wide, aes(x = logfc_bin, y =  chip_HC_1.value - chip_PTZ_1.value)) +
-          geom_point(alpha = 0.1, size = 1) +
-          ## geom_point() +
-          geom_violin() +
-          theme_bw() +
-          ## scale_y_continuous(trans='log1p') +
-          ## scale_y_continuous(trans = ggallin::pseudolog10_trans) +
-          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-          xlab('expression logFC') +
-          stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+
-          stat_summary(fun= function(x) mean(x) - sd(x),
-                       geom="point", shape=18, size=3, color="blue", fill="blue") +
-          stat_summary(fun= function(x) mean(x) + sd(x),
-                       geom="point", shape=18, size=3, color="blue", fill="blue") +
-          geom_hline(yintercept = 0)
+<!--     ## install.packages('ggallin') -->
+<!--     cat('### chip PTZ 1 - chip HC_1 vs logfc bin \n\n') -->
+<!--     print(ggplot(wide, aes(x = logfc_bin, y =  chip_HC_1.value - chip_PTZ_1.value)) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           ## geom_point() + -->
+<!--           geom_violin() + -->
+<!--           theme_bw() + -->
+<!--           ## scale_y_continuous(trans='log1p') + -->
+<!--           ## scale_y_continuous(trans = ggallin::pseudolog10_trans) + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') + -->
+<!--           stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+ -->
+<!--           stat_summary(fun= function(x) mean(x) - sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") + -->
+<!--           stat_summary(fun= function(x) mean(x) + sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") + -->
+<!--           geom_hline(yintercept = 0) -->
           
-          ) 
+<!--           )  -->
 
-    cat('\n\n')
+<!--     cat('\n\n') -->
 
-    cat('### chip PTZ 1 - HC 1 chip vs logfc \n\n')
+<!--     cat('### chip PTZ 1 - HC 1 chip vs logfc \n\n') -->
     
-    ## colnames(wide)
-    print(ggplot(wide, aes(x = logFC,
-                           y =  chip_PTZ_1.value - chip_HC_1.value)) +
-           geom_density_2d(bins = 50) +
-          geom_point(alpha = 0.1, size = 1) +
-          theme_bw() +
-          ## scale_y_sqrt() +
-          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-          xlab('expression logFC') +
-          geom_smooth())
+<!--     ## colnames(wide) -->
+<!--     print(ggplot(wide, aes(x = logFC, -->
+<!--                            y =  chip_PTZ_1.value - chip_HC_1.value)) + -->
+<!--            geom_density_2d(bins = 50) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           theme_bw() + -->
+<!--           ## scale_y_sqrt() + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') + -->
+<!--           geom_smooth()) -->
 
-    cat('\n\n')
+<!--     cat('\n\n') -->
 
-    cat('### chip PTZ 1 vs logfc \n\n')
+<!--     cat('### chip PTZ 1 vs logfc \n\n') -->
     
-    print(ggplot(wide, aes(x = logFC,
-                           y =  chip_PTZ_1.value)) +
-          geom_density_2d(bins = 50) +
-          geom_point(alpha = 0.1, size = 1) +
-          theme_bw() +
-          scale_y_sqrt() +
-          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-          xlab('expression logFC')
-          ## geom_smooth()
-          )
+<!--     print(ggplot(wide, aes(x = logFC, -->
+<!--                            y =  chip_PTZ_1.value)) + -->
+<!--           geom_density_2d(bins = 50) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           theme_bw() + -->
+<!--           scale_y_sqrt() + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') -->
+<!--           ## geom_smooth() -->
+<!--           ) -->
 
-    cat('\n\n')
+<!--     cat('\n\n') -->
 
-    cat('### chip HC 1 vs logfc \n\n')
+<!--     cat('### chip HC 1 vs logfc \n\n') -->
 
-    print(ggplot(wide, aes(x = logFC,
-                           y =  chip_HC_1.value)) +
-          geom_density_2d(bins = 50) +
-          geom_point(alpha = 0.1, size = 1) +
-          theme_bw() +
-          scale_y_sqrt() +
-          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-          xlab('expression logFC')
-          ## geom_smooth()
-          )
+<!--     print(ggplot(wide, aes(x = logFC, -->
+<!--                            y =  chip_HC_1.value)) + -->
+<!--           geom_density_2d(bins = 50) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           theme_bw() + -->
+<!--           scale_y_sqrt() + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') -->
+<!--           ## geom_smooth() -->
+<!--           ) -->
     
-    cat('\n\n')
-    ## scale_y_sqrt() +
-    ##     scale_x_sqrt()
-}
+<!--     cat('\n\n') -->
+<!--     ## scale_y_sqrt() + -->
+<!--     ##     scale_x_sqrt() -->
+<!-- } -->
 
 
-```
+<!-- ``` -->
 
 
-# On just summing reads in promoters, for some promoter definition
+# On just summing reads in promoters, for some promoter definition {.tabset .tabset-pills}
 
 ```{bash, eval = FALSE}
 echo "run promoter_chip_expression_bedtools.sh instead"
 ```
 
 ```{r}
-(fns <- list.files('/home/imallona/tmp/ana', pattern = ".*txt$"))
+fns <- list.files('/home/imallona/tmp/ana', pattern = ".*txt$")
 
 proms <- list()
 
@@ -1781,7 +1781,6 @@ for (fn in fns) {
     tmp  <- read.table(file.path('/home/imallona/tmp/ana', fn))[,4:8]
     colnames(tmp) <- c('logFC', 'logCPM', 'cenp_nreads', 'cenp_meanreads',
                        'cenp_medianreads')
-
     
     tmp$contrast <- gsub('treatment', '',
          gsub('edgeR_dge_results_treatment', '', sapply(strsplit(fn, split = '__'), function(x) return(x[1]))))
@@ -1795,12 +1794,11 @@ for (fn in fns) {
 long <- do.call(rbind.data.frame, proms)
 wide <- do.call(cbind.data.frame, proms)
 
-str(long)
-str(wide)
+
 ```
 
 
-```{r}
+```{r, fig.width = 10, fig.height = 10}
 ## grep('treatmenttreated_6h-treatmenttreated_1h', colnames(wide), value = TRUE)
 ggpairs(wide[,grep('treatmenttreated_6h-treatmenttreated_1h__chip_HC_1', colnames(wide))],
         columnLabels = gsub('edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__', '',
@@ -1811,331 +1809,107 @@ ggpairs(wide[,grep('treatmenttreated_6h-treatmenttreated_1h__chip_HC_1', colname
     ## geom_violin()
 ```
 
-Binning again
+```{r, results = 'asis', fig.width = 5, fig.height = 5}
 
-```{r}
-
-curr <- wide[,c(grep('treatmenttreated_6h-treatmenttreated_1h__chip_HC_1', names(wide), value =  TRUE))]
-
-colnames(curr) <- gsub('edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_1.txt.', '',
-                       colnames(curr))
-
-
-logfc_id <- 'logCPM'
-
-k <- ceiling(max(abs(curr[, logfc_id]), na.rm = TRUE))
+for (chip in c('chip_HC_1', 'chip_PTZ_1')) {
     
-
-curr$logfc_bin <- cut(curr[, logfc_id], breaks = seq(-k, +k, by = 1))
-
-## colnames(curr)
-table(curr$logfc_bin)
-
-
-print(ggplot(curr, aes(x = logfc_bin, y =  cenp_meanreads)) +
-      geom_point(alpha = 0.1, size = 1) +
-      ## geom_point() +
-      geom_violin() +
-      theme_bw() +
-      scale_y_continuous(trans='log1p') +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-      xlab('expression logFC') +
-      stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+
-      stat_summary(fun= function(x) mean(x) - sd(x),
-                   geom="point", shape=18, size=3, color="blue", fill="blue") +
-      stat_summary(fun= function(x) mean(x) + sd(x),
-                   geom="point", shape=18, size=3, color="blue", fill="blue")
-      
-      )
-
-## print(ggplot(curr, aes(x = logfc_bin, y =  cenp_meanreads)) +
-##       geom_point(alpha = 0.1, size = 1) +
-##       ## geom_point() +
-##       geom_violin() +
-##       theme_bw() +
-##       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-##       xlab('expression logFC') +
-##       stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+
-##       stat_summary(fun= function(x) mean(x) - sd(x),
-##                    geom="point", shape=18, size=3, color="blue", fill="blue") +
-##       stat_summary(fun= function(x) mean(x) + sd(x),
-##                    geom="point", shape=18, size=3, color="blue", fill="blue")
-      
-##       )
-
-## print(ggplot(curr, aes(x = logfc_bin, y =  cenp_meanreads)) +
-##       geom_point(alpha = 0.1, size = 1) +
-##       ## geom_point() +
-##       scale_y_continuous(trans='sqrt') +
-##       geom_violin() +
-##       theme_bw() +
-##       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-##       xlab('expression logFC') +
-##       stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+
-##       stat_summary(fun= function(x) mean(x) - sd(x),
-##                    geom="point", shape=18, size=3, color="blue", fill="blue") +
-##       stat_summary(fun= function(x) mean(x) + sd(x),
-##                    geom="point", shape=18, size=3, color="blue", fill="blue")
-      
-##       )
-
-logfc_id <- 'logFC'
-
-k <- ceiling(max(abs(curr[, logfc_id]), na.rm = TRUE))
+    cat('## ', chip, ' {.tabset .tabset-pills}\n\n')
     
+    for (item_short in c('treatmenttreated_1h-treatmentcontrol',
+                   'treatmenttreated_6h-treatmenttreated_1h',
+                   'treatmenttreated_48h-treatmenttreated_6h')) {
+        cat('### ', item_short, ' {.tabset .tabset-pills} \n\n')
+        
+        item <- paste0(item_short, '__', chip)
+       
 
-curr$logfc_bin <- cut(curr[, logfc_id], breaks = seq(-k, +k, by = 1))
+        for (viewpoint in c('logCPM', 'logFC')) {
+            cat('#### ', viewpoint, ' {.tabset .tabset-pills}  \n\n')
+            c(grep(item, colnames(wide), value =  TRUE))
+              
+            curr <- wide[,c(grep(item, colnames(wide), value =  TRUE))]
 
-## colnames(curr)
-table(curr$logfc_bin)
+            colnames(curr) <- gsub(sprintf('edgeR_dge_results_%s.txt.', item), '',
+                                   colnames(curr))
 
+            k <- ceiling(max(abs(curr[, viewpoint]), na.rm = TRUE))
 
-print(ggplot(curr, aes(x = logfc_bin, y =  cenp_meanreads, color = cenp_meanreads)) +
-      geom_point(alpha = 0.1, size = 1) +
-      ## geom_point() +
-      geom_violin() +
-      theme_bw() +
-      scale_y_continuous(trans='log1p') +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-      xlab('expression logFC') +
-      stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+
-      stat_summary(fun= function(x) mean(x) - sd(x),
-                   geom="point", shape=18, size=3, color="blue", fill="blue") +
-      stat_summary(fun= function(x) mean(x) + sd(x),
-                   geom="point", shape=18, size=3, color="blue", fill="blue")
-      
-      )
+            if (viewpoint == 'logCPM')
+                curr$bin <- cut(curr[, viewpoint], breaks = seq(-k, +k, by = 1))
+            if (viewpoint == 'logFC')
+                curr$bin <- cut(curr[, viewpoint], breaks = seq(-k, +k, by = 2))
+            ## curr$bin <- cut(curr[, viewpoint], breaks = 10)
 
-```
+            cat('\n\n##### median\n\n')
+            print(ggplot(curr, aes(x = bin, y =  cenp_medianreads)) +
+                  geom_point(alpha = 0.1, size = 1) +
+                  ## geom_point() +
+                  geom_violin() +
+                  theme_bw() +
+                  scale_y_continuous(trans='log1p', breaks = c(0, 1, 5, 10, 100, 500, 2000, 5000, 10000)) +
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                  xlab(sprintf('expression %s in %s', viewpoint, item_short)) +
+                  stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="red")+
+                  stat_summary(fun= function(x) median(x) - mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue") +
+                  stat_summary(fun= function(x) median(x) + mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue")
+                  
+                  )
 
-<!-- ```{r} -->
-<!-- knitr::knit_exit() -->
-<!-- ``` -->
+            cat('\n\n##### sum\n\n')
+            print(ggplot(curr, aes(x = bin, y =  cenp_nreads)) +
+                  geom_point(alpha = 0.1, size = 1) +
+                  ## geom_point() +
+                  geom_violin() +
+                  theme_bw() +
+                  scale_y_continuous(trans='log1p', breaks = c(0, 1, 5, 10, 100, 500, 2000, 5000, 10000)) +
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                  xlab(sprintf('expression %s in %s', viewpoint, item_short)) +
+                  stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="red")+
+                  stat_summary(fun= function(x) median(x) - mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue") +
+                  stat_summary(fun= function(x) median(x) + mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue")
+                  
+                  )
 
-```{r fig.width = 20, fig.height = 6}
-## multiHeatMatrix(sml.scaled, xcoords = c(-250, 250), col = c("lightgray", "blue"),
-##                 clustfun = function(x) kmeans(x,
-##                                               centers=6)$cluster,
-##                 clust.matrix = 7:8)
+            cat('\n\n##### mean\n\n')
+            print(ggplot(curr, aes(x = bin, y =  cenp_meanreads)) +
+                  geom_point(alpha = 0.1, size = 1) +
+                  ## geom_point() +
+                  geom_violin() +
+                  theme_bw() +
+                  scale_y_continuous(trans='log1p', breaks = c(0, 1, 5, 10, 100, 500, 2000, 5000, 10000)) +
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                  xlab(sprintf('expression %s in %s', viewpoint, item_short)) +
+                  stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="red")+
+                  stat_summary(fun= function(x) mean(x) - sd(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue") +
+                  stat_summary(fun= function(x) mean(x) + sd(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue")
+                  
+                  )
+   
 
+            rm(curr)
+            cat('\n\n')
+            
+        }
+
+        cat('\n\n')
+    }
+    cat('\n\n')
+}
 ```
 
 
-<!-- Rather, segment genesets by diff expression, and work with that -->
 
-<!-- ```{r} -->
-<!-- pos_signif <- edge_pos[[1]][edge_pos[[1]]$padj < 0.1] -->
-<!-- pos_ns <- edge_pos[[1]][edge_pos[[1]]$padj >= 0.1] -->
-<!-- neg_signif <- edge_neg[[1]][edge_neg[[1]]$padj < 0.1] -->
-<!-- neg_ns <- edge_neg[[1]][edge_neg[[1]]$padj >= 0.1] -->
+```{r, cache = FALSE}
+knitr::knit_exit()
+```
 
-<!-- ``` -->
-
-<!-- ### Serial chunked {.tabset .tabset-pills} -->
-
-<!-- ```{r, fig.width = 18, fig.height = 6, results = 'asis'} -->
-
-<!-- cat('#### pos signif\n') -->
-<!-- pos_signif_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg), -->
-<!--                                                            trim(resize(pos_signif, width = width(pos_signif)*1.20, fix = "center")), -->
-<!--                                                            bin.num = 100, -->
-<!--                                                            is.noCovNA = TRUE, -->
-<!--                                                            strand.aware = TRUE, -->
-<!--                                                            cores = NTHREADS), -->
-<!--                                            reorder = TRUE) -->
-
-<!-- multiHeatMatrix(pos_signif_sml, -->
-<!--                 order = TRUE, -->
-<!--                 clustfun = function(x) kmeans(x, centers =2)$cluster, -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99), -->
-<!--                 clust.matrix = 1:3) -->
-
-<!-- cat('#### pos not signif\n') -->
-
-<!-- pos_ns_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg), -->
-<!--                                 trim(resize(pos_ns, width = width(pos_ns)*1.20, fix = "center")), -->
-<!--                                 bin.num = 100, -->
-<!--                                 is.noCovNA = TRUE, -->
-<!--                                 strand.aware = TRUE, -->
-<!--                                 cores = NTHREADS), -->
-<!--                                 reorder = TRUE) -->
-
-<!-- multiHeatMatrix(pos_ns_sml, -->
-<!--                 order = TRUE, -->
-<!--                 clustfun = function(x) kmeans(x, centers =2)$cluster, -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99), -->
-<!--                 clust.matrix = 1:3) -->
-
-<!-- cat('#### neg signif\n') -->
-
-<!-- neg_signif_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg), -->
-<!--                                 trim(resize(neg_signif, width = width(neg_signif)*1.20, fix = "center")), -->
-<!--                                 bin.num = 100, -->
-<!--                                 is.noCovNA = TRUE, -->
-<!--                                 strand.aware = TRUE, -->
-<!--                 cores = NTHREADS), reorder = TRUE) -->
-
-<!-- multiHeatMatrix(neg_signif_sml, -->
-<!--                 order = TRUE, -->
-<!--                 clustfun = function(x) kmeans(x, centers =2)$cluster, -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99), -->
-<!--                 clust.matrix = 1:3) -->
-
-<!-- cat('#### neg not signif\n') -->
-
-<!-- neg_ns_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg), -->
-<!--                                 trim(resize(neg_ns, width = width(neg_ns)*1.20, fix = "center")), -->
-<!--                                 bin.num = 100, -->
-<!--                                 is.noCovNA = TRUE, -->
-<!--                                 strand.aware = TRUE, -->
-<!--                                 cores = NTHREADS), reorder = TRUE) -->
-<!-- multiHeatMatrix(neg_ns_sml, -->
-<!--                 order = TRUE, -->
-<!--                 clustfun = function(x) kmeans(x, centers =2)$cluster, -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99), -->
-<!--                 clust.matrix = 1:3) -->
-
-<!-- ``` -->
-
-<!-- Maybe rbind those and group them / label them manually? -->
-
-<!-- These are highlighting 1h vs control, only -->
-
-<!-- ```{r, fig.width = 20, fig.height = 10} -->
-<!-- joint_sml <- pos_signif_sml -->
-
-<!-- for (item in names(joint_sml)) { -->
-<!--     joint_sml[[item]]@.Data <- rbind(pos_signif_sml[[item]]@.Data, -->
-<!--                                      pos_ns_sml[[item]]@.Data, -->
-<!--                                      neg_signif_sml[[item]]@.Data, -->
-<!--                                      neg_ns_sml[[item]]@.Data -->
-<!--                                      ) -->
-<!-- } -->
-
-<!-- multiHeatMatrix(joint_sml, -->
-<!--                 order = TRUE, -->
-<!--                 ## clust = function(x) kmeans(x, centers = 6)$cluster, -->
-<!--                 group = as.factor(c(rep('pos', nrow(pos_signif_sml[[1]])), -->
-<!--                           rep('pos_ns', nrow(pos_ns_sml[[1]])), -->
-<!--                           rep('neg', nrow(neg_signif_sml[[1]])), -->
-<!--                           rep('neg_ns', nrow(neg_ns_sml[[1]])))), -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99)) -->
-
-<!-- ``` -->
-
-<!-- What about 48h to 6h? -->
-
-
-<!-- ```{r} -->
-<!-- item <- 'treated_48h-treated_6h_up' -->
-<!-- pos_signif <- edge_pos[[item]][edge_pos[[item]]$padj < 0.1] -->
-<!-- pos_ns <- edge_pos[[item]][edge_pos[[item]]$padj >= 0.1] -->
-<!-- neg_signif <- edge_neg[[item]][edge_neg[[item]]$padj < 0.1] -->
-<!-- neg_ns <- edge_neg[[item]][edge_neg[[item]]$padj >= 0.1] -->
-
-<!-- ``` -->
-
-
-<!-- ```{r, fig.width = 18, fig.height = 6, results = 'asis'} -->
-
-<!-- cat('#### pos signif\n') -->
-<!-- pos_signif_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg), -->
-<!--                                                            trim(resize(pos_signif, width = width(pos_signif)*1.20, fix = "center")), -->
-<!--                                                            bin.num = 100, -->
-<!--                                                            is.noCovNA = TRUE, -->
-<!--                                                            strand.aware = TRUE, -->
-<!--                                                            cores = NTHREADS), -->
-<!--                                            reorder = TRUE) -->
-
-<!-- multiHeatMatrix(pos_signif_sml, -->
-<!--                 order = TRUE, -->
-<!--                 clustfun = function(x) kmeans(x, centers =2)$cluster, -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99), -->
-<!--                 clust.matrix = 1:3) -->
-
-<!-- cat('#### pos not signif\n') -->
-
-<!-- pos_ns_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg), -->
-<!--                                 trim(resize(pos_ns, width = width(pos_ns)*1.20, fix = "center")), -->
-<!--                                 bin.num = 100, -->
-<!--                                 is.noCovNA = TRUE, -->
-<!--                                 strand.aware = TRUE, -->
-<!--                                 cores = NTHREADS), -->
-<!--                                 reorder = TRUE) -->
-
-<!-- multiHeatMatrix(pos_ns_sml, -->
-<!--                 order = TRUE, -->
-<!--                 clustfun = function(x) kmeans(x, centers =2)$cluster, -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99), -->
-<!--                 clust.matrix = 1:3) -->
-
-<!-- cat('#### neg signif\n') -->
-
-<!-- neg_signif_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg), -->
-<!--                                 trim(resize(neg_signif, width = width(neg_signif)*1.20, fix = "center")), -->
-<!--                                 bin.num = 100, -->
-<!--                                 is.noCovNA = TRUE, -->
-<!--                                 strand.aware = TRUE, -->
-<!--                 cores = NTHREADS), reorder = TRUE) -->
-
-<!-- multiHeatMatrix(neg_signif_sml, -->
-<!--                 order = TRUE, -->
-<!--                 clustfun = function(x) kmeans(x, centers =2)$cluster, -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99), -->
-<!--                 clust.matrix = 1:3) -->
-
-<!-- cat('#### neg not signif\n') -->
-
-<!-- neg_ns_sml <- intersectScoreMatrixList(ScoreMatrixList(c(covs, edge_pos, edge_neg), -->
-<!--                                 trim(resize(neg_ns, width = width(neg_ns)*1.20, fix = "center")), -->
-<!--                                 bin.num = 100, -->
-<!--                                 is.noCovNA = TRUE, -->
-<!--                                 strand.aware = TRUE, -->
-<!--                                 cores = NTHREADS), reorder = TRUE) -->
-<!-- multiHeatMatrix(neg_ns_sml, -->
-<!--                 order = TRUE, -->
-<!--                 clustfun = function(x) kmeans(x, centers =2)$cluster, -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99), -->
-<!--                 clust.matrix = 1:3) -->
-
-<!-- ``` -->
-
-<!-- Maybe rbind those and group them / label them manually? -->
-
-<!-- These are highlighting 1h vs control, only -->
-
-<!-- ```{r, fig.width = 20, fig.height = 10} -->
-<!-- joint_sml <- pos_signif_sml -->
-
-<!-- for (item in names(joint_sml)) { -->
-<!--     joint_sml[[item]]@.Data <- rbind(pos_signif_sml[[item]]@.Data, -->
-<!--                                      pos_ns_sml[[item]]@.Data, -->
-<!--                                      neg_signif_sml[[item]]@.Data, -->
-<!--                                      neg_ns_sml[[item]]@.Data -->
-<!--                                      ) -->
-<!-- } -->
-
-<!-- multiHeatMatrix(joint_sml, -->
-<!--                 order = TRUE, -->
-<!--                 ## clust = function(x) kmeans(x, centers = 6)$cluster, -->
-<!--                 group = as.factor(c(rep('pos', nrow(pos_signif_sml[[1]])), -->
-<!--                           rep('pos_ns', nrow(pos_ns_sml[[1]])), -->
-<!--                           rep('neg', nrow(neg_signif_sml[[1]])), -->
-<!--                           rep('neg_ns', nrow(neg_ns_sml[[1]])))), -->
-<!--                 col = viridis(9), -->
-<!--                 winsorize = c(1,99)) -->
-
-<!-- ``` -->
-
+# ChiP-seq (public) data
 
 ## GSE93011 (the one with K27me3) {.tabset .tabset-pills}
 
@@ -3571,7 +3345,7 @@ test %>%
     scale_x_discrete('normalized genebody position',
                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
     scale_color_brewer(palette="Set1") +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
 
 ```
 
