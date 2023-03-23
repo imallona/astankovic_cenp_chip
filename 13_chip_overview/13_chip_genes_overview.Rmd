@@ -56,7 +56,7 @@ DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
 PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
 
 ## if downsampled, only chr19
-DOWNSAMPLE <- TRUE
+DOWNSAMPLE <- FALSE
 
 BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
 ```
@@ -170,7 +170,7 @@ sml_genes <- ScoreMatrixList(covs, windows = genes_asis,
 
 
 ```{r}
-NUM_CLUSTERS <- 8
+NUM_CLUSTERS <- 6
 ```
 
 
@@ -1794,20 +1794,51 @@ for (fn in fns) {
 long <- do.call(rbind.data.frame, proms)
 wide <- do.call(cbind.data.frame, proms)
 
+```
+
+Add a delta
+
+```{r}
+
+## doesn't matter which contrast, chip is chip/regardless of edgeR
+wide$delta_cenp_reads_23 <- wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_2_3.txt.cenp_nreads` -
+    wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_2_3.txt.cenp_nreads`
+
+wide$delta_cenp_reads_1 <- wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_1.txt.cenp_nreads` -
+    wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_1.txt.cenp_nreads`
+
+```
+
+Normalize by 1 M centromeric reads
+
+
+```{r}
+## ~/cenp_chip/nested_mapping/chip_HC_1_oligomerized/log
+hc_1_centrom <- 0.5978 * 49536148
+## ~/cenp_chip/nested_mapping/chip_PTZ_1_oligomerized/log
+ptz_1_centrom <- 0.6888*38482901
+
+counts_per_million_centromeric_reads <- function(x, centrom_total) {
+    return(x * centrom_total / 1e6)
+}
+
+counts_per_million_centromeric_reads(1, centrom_total = hc_1_centrom)
+counts_per_million_centromeric_reads(1, centrom_total = ptz_1_centrom)
+
+```{r}
+wide$delta_cenp_cpmc_1 <- counts_per_million_centromeric_reads(wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_1.txt.cenp_nreads`, ptz_1_centrom) -
+    counts_per_million_centromeric_reads(wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_1.txt.cenp_nreads`, hc_1_centrom)
+
+
+
+## mind the sample swap for reps 2 and 3 before adding them
 
 ```
 
 
-```{r, fig.width = 10, fig.height = 10}
-## grep('treatmenttreated_6h-treatmenttreated_1h', colnames(wide), value = TRUE)
-ggpairs(wide[,grep('treatmenttreated_6h-treatmenttreated_1h__chip_HC_1', colnames(wide))],
-        columnLabels = gsub('edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__', '',
-                            grep('treatmenttreated_6h-treatmenttreated_1h__chip_HC_1', colnames(wide),
-                                 value = TRUE)))
+Note: `delta_cenp_reads_1` means the direct `cenp_chip_PTZ_1 - cenp_chip_HC_1` subtract value; whereas `delta_cenp_cpmc_1` depicts the same delta PTZ vs HC counts per promoter, but transformed/normalized as `counts per million centromeric reads`. Of course, PTZ_1 and HC_1 have (each) their own number of mapped centromeric reads as scaling factor.
 
-## ggplot(proms, aes(x = contrast, y = logCPM, group = chip)) +
-    ## geom_violin()
-```
+Data for replicate 23 are not shown in this report.
 
 ```{r, results = 'asis', fig.width = 5, fig.height = 5}
 
@@ -1903,11 +1934,108 @@ for (chip in c('chip_HC_1', 'chip_PTZ_1')) {
 }
 ```
 
+```{r, results = 'asis', fig.width = 5, fig.height = 5}
+
+wide$`treatmenttreated_1h-treatmenttreated_control.logFC` <- wide$`edgeR_dge_results_treatmenttreated_1h-treatmentcontrol__chip_HC_1.txt.logFC`
+
+wide$`treatmenttreated_1h-treatmenttreated_control.logCPM` <- wide$`edgeR_dge_results_treatmenttreated_1h-treatmentcontrol__chip_HC_1.txt.logCPM`
+
+wide$`treatmenttreated_6h-treatmenttreated_1h.logFC` <- wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_2_3.txt.logFC`
+wide$`treatmenttreated_6h-treatmenttreated_1h.logCPM` <- wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_2_3.txt.logCPM`
+
+wide$`treatmenttreated_48h-treatmenttreated_6h.logFC` <- wide$`edgeR_dge_results_treatmenttreated_48h-treatmenttreated_6h__chip_PTZ_2_3.txt.logFC`
+wide$`treatmenttreated_48h-treatmenttreated_6h.logCPM` <- wide$`edgeR_dge_results_treatmenttreated_48h-treatmenttreated_6h__chip_PTZ_2_3.txt.logCPM`
 
 
-```{r, cache = FALSE}
-knitr::knit_exit()
+## https://andrewpwheeler.com/2015/07/31/custom-square-root-scale-with-negative-values-in-ggplot2-r/
+library(scales)            
+## S_sqrt <- function(x){sign(x)*sqrt(abs(x))}
+## IS_sqrt <- function(x){x^2*sign(x)}
+## S_sqrt_trans <- function() trans_new("S_sqrt",S_sqrt,IS_sqrt)
+
+## https://stackoverflow.com/questions/20924705/plot-negative-values-in-logarithmic-scale-with-ggplot-2
+reverselog_trans <- function(base = exp(1)) {
+    trans <- function(x) -log(x, base)
+    inv <- function(x) base^(-x)
+    trans_new(paste0("reverselog-", format(base)), trans, inv, 
+              log_breaks(base = base), 
+              domain = c(1e-100, Inf))
+}
+
+for (delta in c("delta_cenp_reads_1", "delta_cenp_cpmc_1")) {
+    
+    cat('## ', delta, ' {.tabset .tabset-pills}\n\n')
+    
+    for (item_short in c('treatmenttreated_1h-treatmenttreated_control',
+                   'treatmenttreated_6h-treatmenttreated_1h',
+                   'treatmenttreated_48h-treatmenttreated_6h')) {
+        cat('### ', item_short, ' {.tabset .tabset-pills} \n\n')
+        
+
+        for (viewpoint in c('logCPM', 'logFC')) {
+            item <- paste0(item_short, '.', viewpoint)
+            
+            cat('#### ', viewpoint, ' {.tabset .tabset-pills}  \n\n')
+            ## c(grep(item, colnames(wide), value =  TRUE))
+              
+            curr <- wide[,c(grep(item, colnames(wide), value =  TRUE), delta)]
+
+
+            k <- ceiling(max(abs(curr[, item]), na.rm = TRUE))
+
+            if (viewpoint == 'logCPM')
+                curr$bin <- cut(curr[, item], breaks = seq(-k, +k, by = 1))
+            if (viewpoint == 'logFC')
+                curr$bin <- cut(curr[, item], breaks = seq(-k, +k, by = 2))
+            ## curr$bin <- cut(curr[, viewpoint], breaks = 10)
+
+            ## cat('\n\n##### median\n\n')
+            ## library(ggallin)
+            print(ggplot(curr, aes(x = bin, y =  get(delta))) +
+                  geom_point(alpha = 0.1, size = 1) +
+                  ## geom_point() +
+                  scale_y_continuous(trans=reverselog_trans(base=10),
+                                     labels=trans_format("identity", function(x) -x)) +
+                  geom_violin() +
+                  theme_bw() +
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                  xlab(sprintf('%s %s', viewpoint, item_short)) +
+                  ylab(delta) +
+                  stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="red")+
+                  stat_summary(fun= function(x) median(x) - mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue") +
+                  stat_summary(fun= function(x) median(x) + mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue")
+                  
+                  )
+
+
+            rm(curr)
+            cat('\n\n')
+            
+        }
+
+        cat('\n\n')
+    }
+    cat('\n\n')
+}
 ```
+
+# Counts per million centromeric reads PTZ_1 vs HC_1
+
+In promoters, here
+
+
+```{r}
+tmp <- data.frame(cpcm = c(wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_1.txt.cenp_nreads`/ ptz_1_centrom, wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_1.txt.cenp_nreads`/ hc_1_centrom),
+                  status = c(rep('PTZ', nrow(wide)), rep('HC', nrow(wide))))
+print(ggplot(tmp, aes(x=status, y=cpcm, fill = status)) +
+      geom_violin() +
+      scale_y_log10() +
+      theme_bw())
+             
+```
+
 
 # ChiP-seq (public) data
 
@@ -3358,7 +3486,7 @@ set.seed(134)
 test %>%
     group_by(cluster, sample, pos, status, category) %>%
     summarise_at(vars(value),
-               list(value = function(x) median(winsorize(x, rang = c(2, 98))))) %>% 
+               list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>% 
     ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
     geom_line(lwd = 1) +
     facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
@@ -3370,8 +3498,34 @@ test %>%
 
 ```
 
+Even more winsorized, smooth
+
+```{r, fig.width = 10, fig.height = 10}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>% 
+    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+
+    geom_smooth(method = "loess", se = TRUE, span = 0.05) + 
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
 
 ```{r}
+sessionInfo()
+```
+
+```{r, cache = FALSE}
 knitr::knit_exit()
 ```
 
