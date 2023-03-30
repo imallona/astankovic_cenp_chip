@@ -60,7 +60,7 @@ DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
 PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
 
 ## if downsampled, only chr19
-DOWNSAMPLE <- FALSE
+DOWNSAMPLE <- TRUE
 
 BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
 ```
@@ -1990,10 +1990,12 @@ get(gse)
 
 This is the one with H3K4me3 and H3K4me1
 
-These are peaks, not signal. mm10, ncbi-style chrom names. 
+These are peaks, not signal. mm10, ncbi-style chrom names.  Updated: mapped the H4me3, using our bigWigs instead
 
 ```{r}
 gse <- 'GSE85873'
+
+stop('')
 
 
 fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*gz$'))
