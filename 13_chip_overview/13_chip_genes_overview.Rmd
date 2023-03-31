@@ -58,6 +58,8 @@ PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
 ## if downsampled, only chr19
 DOWNSAMPLE <- FALSE
 
+NUM_CLUSTERS <- 4
+
 BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
 ```
 
@@ -170,11 +172,6 @@ sml_genes <- ScoreMatrixList(covs, windows = genes_asis,
 
 
 ```{r}
-NUM_CLUSTERS <- 6
-```
-
-
-```{r}
 ## we cluster once on CENPA-in-house-only, and reuse that for plotting across datasets
 mat.list = lapply(sml_genes, function(x) x@.Data)
     group.vector = NULL
@@ -280,7 +277,7 @@ max(sml_genes_with_cpg_idx)
 length(sml_genes_with_cpg_idx)
 sml_genes_with_cpg
 ## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
-##                                 genes_proms, bin.num = 50,
+##                                 genes_proms, bin.num = 100,
 ##                                 strand.aware = TRUE,
 ##                                 cores = NTHREADS)
 
@@ -297,7 +294,7 @@ sml_genes_scaled_with_cpg <- intersectScoreMatrixList(ScoreMatrixList(c(sml_gene
 sml_genes_scaled_with_cpg_idx <- dimnames(sml_genes_scaled_with_cpg@.Data[[1]])[[1]]
 
 ## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
-##                                 genes_proms, bin.num = 50,
+##                                 genes_proms, bin.num = 100,
 ##                                 strand.aware = TRUE,
 ##                                 cores = NTHREADS)
 
@@ -1037,10 +1034,11 @@ test %>% group_by(sample, cluster, pos) %>%
 
 Is CENP binding promoters anyway? Check, iteratively, the top signal, i.e. quantile 80 (top 20%), quantile 90 (top 10%) etc.
 
+
 ```{r fig.height = 4, fig.width = 8, results = 'asis'}
 for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
 
-    cat('## Quantile', quant, ' \n\n')
+    cat('## Quantile', quant, ' {.tabset .tabset-pills} \n\n')
     sel <- list()
     for (item in names(covs)) {
         sel[[item]] <- covs[[item]][!is.na(covs[[item]]$cov) &
@@ -1048,11 +1046,108 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
     }
 
     sel <- sel[rev(names(sel))]
+
+    ## ?genomicElementDistribution
+
+    cat('### standard \n\n')
+    
     genomicElementDistribution(GRangesList(sel), 
-                               TxDb = txdb,
-                               promoterRegion=c(upstream=2000, downstream=500),
+                                    TxDb = txdb,
+                                    ignore.strand = FALSE,
+                               labels = list(geneLevel = c(promoter = "Promoter",
+                                                           geneDownstream = "Downstream",
+                                                           geneBody = "Gene body",
+                                                           distalIntergenic = "Intergenic")),
+                               labelColors = c(promoter = "#D55E00",
+                                               geneDownstream = "#E69F00", 
+                                               geneBody = "#51C6E6",
+                                               distalIntergenic = "#AAAAAA",
+                                               exon = "#FFFFFF", 
+                                               intron = "#FFFFFF",
+                                               intergenic = "#FFFFFF",
+                                               utr5 = "#FFFFFF", 
+                                               utr3 = "#FFFFFF",
+                                               CDS = "#FFFFFF",
+                                               otherExon = "#FFFFFF"),
+                               promoterRegion=c(upstream=1000, downstream=1000),
                                geneDownstream=c(upstream=0, downstream=2000))
 
+
+
+    ## gt <- ggplot_gtable(ggplot_build(p$plot))   
+
+    ## grid.newpage()
+    ## grid.draw(gt)
+    
+    ## ## we want to remove everything related to panel-6-
+    ## rm_grobs <- gt$layout$name %in% c("panel-1-2", "panel-1-3",
+    ##                                   "strip-t-1-2", "strip-t-1-3",
+    ##                                   "axis-l-1-2", "axis-l-1-3",
+    ##                                   "axis-r-1-2", "axis-r-1-3",
+    ##                                   "axis-b-1-2",
+    ##                                   "axis-t-1-2", "axis-t-1-3",
+    ##                                   "axis-l-2-1", "axis-l-2-1",
+    ##                                   "axis-l-3-1", "axis-l-3-1")
+
+    ## gt$heights[17] <- unit(0, "cm")
+    
+    ## ## remove grobs
+    ## gt$grobs[rm_grobs] <- NULL
+    ## gt$layout <- gt$layout[!rm_grobs, ]
+
+    ## grid.newpage()
+    ## grid.draw(gt)
+    
+    peaks <- genomicElementDistribution(GRangesList(sel), 
+                                      TxDb = txdb,
+                                      ignore.strand = FALSE,
+                                      labels = list(geneLevel = c(promoter = "Promoter",
+                                                                  geneDownstream = "Downstream",
+                                                                  geneBody = "Gene body",
+                                                                  distalIntergenic = "Intergenic")),
+                                      labelColors = c(promoter = "#D55E00",
+                                                      geneDownstream = "#E69F00", 
+                                                      geneBody = "#51C6E6",
+                                                      distalIntergenic = "#AAAAAA",
+                                                      exon = "#FFFFFF", 
+                                                      intron = "#FFFFFF",
+                                                      intergenic = "#FFFFFF",
+                                                      utr5 = "#FFFFFF", 
+                                                      utr3 = "#FFFFFF",
+                                                      CDS = "#FFFFFF",
+                                                      otherExon = "#FFFFFF"),
+                                      promoterRegion=c(upstream=1000, downstream=1000),
+                                      geneDownstream=c(upstream=0, downstream=2000),
+                                      plot = FALSE)
+
+    foo <- list(cenp_hc_1 = as.data.frame(mcols(peaks$peaks$cenp_HC_1)),
+                cenp_ptz_1 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_1)))
+
+    foo$cenp_hc_1$origin <- 'cenp_hc_1'
+    foo$cenp_ptz_1$origin <- 'cenp_ptz_1'
+    
+    foo <- do.call(rbind.data.frame, foo)
+
+    ## ggplot(foo, aes(fill=geneLevel, y=cov, x=origin)) + 
+    ##     geom_bar(position="fill", stat="identity") +
+    ##     theme_bw()
+
+    foo$geneLevel <- gsub('distalIntergenic', 'intergenic', foo$geneLevel)
+
+    cat('\n\n')
+    
+    cat('### custom \n\n')
+    
+    foo %>% group_by(geneLevel, origin) %>% 
+        summarize(count = length(geneLevel)) %>%
+        ggplot(aes(fill=geneLevel, y=count, x=origin)) + 
+        geom_bar(position="fill", stat="identity") +
+        theme_bw() +
+        ylab('percent') +
+        xlab('condition') +
+        ggtitle(sprintf('Quantile %s', quant))
+    
+    
     cat('\n\n')
 }
 
@@ -1167,7 +1262,7 @@ names(edge_neg) <-   gsub('.txt_down', '_down',
 
 
 ## the weight col is the metadata one
-## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 50, weight.col = 'logFC')
+## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 100, weight.col = 'logFC')
 
 
 edge_sm <- lapply(c(edge_pos, edge_neg),
@@ -2359,7 +2454,7 @@ for (fn in fns) {
     bws[[basename(fn)]] <- tryCatch({
         ScoreMatrixBin(fn, windows = genes_asis,
                     type = "auto",
-                    bin.num = 50,
+                    bin.num = 100,
                     strand.aware = TRUE)
     }, error = function(x) {
         tryCatch({
@@ -2545,7 +2640,7 @@ This is the one with H3K4me3 and H3K4me1
 
 These are peaks, not signal. mm10, ncbi-style chrom names. 
 
-```{r}
+```{r old_peaks, eval = FALSE}
 gse <- 'GSE85873'
 
 
@@ -2578,7 +2673,7 @@ names(peaks) <- c('K4me3_wt_HC_1', 'K4me3_wt_NE_1', 'K4me3_wt_HC_2', 'K4me3_wt_N
 ## names(peaks) <- c('K4me1_WT')
 peaks <- ScoreMatrixList(peaks,
                          genes_asis,
-                         bin.num = 50,
+                         bin.num = 100,
                          weight.col = 'score',
                          is.noCovNA = TRUE,
                          type = "auto",  strand.aware = TRUE)
@@ -2586,11 +2681,48 @@ peaks <- ScoreMatrixList(peaks,
 assign(gse, peaks)
 ```
 
+
+
+```{r bws_k4me3, eval = TRUE}
+gse <- 'GSE85873'
+
+reproc <- '/home/imallona/cenp_chip/public/k4me3/bamCoverage'
+fns <- file.path(reproc, list.files(file.path(reproc), pattern = '.*bw$'))
+
+fns <- grep('filtered', fns, value = TRUE, invert = TRUE)
+
+## fns <- grep('H3K4me', fns, value = TRUE)
+
+
+bws <- list()
+
+for (fn in fns) {
+    print(fn)
+    bws[[basename(fn)]] <- tryCatch({
+        ScoreMatrixBin(fn, windows = genes_asis,
+                    type = "auto",
+                    bin.num = 100,
+                    strand.aware = TRUE)
+    })
+}
+
+
+
+names(bws) <- gsub('.seq_depth_norm.bw', '', names(bws))
+
+names(bws) <- gsub('novel_environment', 'ne', names(bws))
+names(bws) <- gsub('k4me3', 'K4me3', names(bws))
+
+assign(gse, bws)
+```
+
+
+
 ### Heat
 
 ```{r}
 
-
+peaks <- bws ## old comp
 tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, GSE125068, peaks),
                                                 genes_asis,
                                                 bin.num = 100,
@@ -2705,7 +2837,7 @@ for (fn in fns) {
 }
 
 
-bws <- ScoreMatrixList(bws, bin.num = 50)
+bws <- ScoreMatrixList(bws, bin.num = 100)
 names(bws) <- gsub('.seq_depth_norm.bw', '', names(bws))
 names(bws) <- paste0('cenp_liver_', names(bws))
 
@@ -2803,7 +2935,7 @@ fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'),
 
 ## bws <- ScoreMatrixList(fns, genes_asis,
 ##                        type = "auto",  strand.aware = TRUE,
-##                        bin.num = 50)
+##                        bin.num = 100)
 
 curr <- list()
 for (fn in fns) {
@@ -3224,7 +3356,7 @@ Filter here requested datasets, only? or, rather, do that first?
 ```{r, fig.height = 6, fig.width = 25}
 
 
-
+peaks <- ScoreMatrixList(peaks)
 
 tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, GSE125068, peaks,
                                                   GSE93011,
@@ -3290,7 +3422,7 @@ test %>% group_by(sample, cluster, pos) %>%
 
 
 ```{r, cache = FALSE}
-saveRDS(test, file = 'test_another.rds')
+saveRDS(test, file = 'test_genes_another.rds')
 
 ## test <- readRDS('test_another.rds')
 ## unique(test$sample)
@@ -3357,12 +3489,24 @@ table(test$category, test$panel, useNA = 'always')
 
 ```{r}
 unique(test$category)
-selected <- c('CENP', 'K4me3', 'K27ac', 'Pol2', 'CBP', 'K27me3')
-selected %in% test$category
-test <- test[test$category %in% selected,]
+## selected <- c('CENP', 'ATAC', 'K4me3', 'K27ac', 'Pol2', 'CBP', 'K27me3')
+selected_metaplot <- c('CENP', 'K27ac', 'K4me3', 'Pol2', 'CBP', 'nuRNA')
+selected_heatmap <- c('CENP', 'K27ac', 'K27me3')
 
-test$category <- factor(test$category, levels = selected)
+
+selected_heatmap_samples <-  names(tmp) %in% unique(test[test$category %in% selected_heatmap, 'sample'])
+
+tmp_selected <- tmp[selected_heatmap_samples]
+
+test <- test[test$category %in% selected_metaplot,]
+
+test$category <- factor(test$category, levels = selected_metaplot)
 ```
+
+```{r}
+test <- test[!test$sample %in% 'GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',]
+```
+
 
 ```{r}
 test$value[is.na(test$value)] <- 0
@@ -3384,10 +3528,38 @@ test$value[is.na(test$value)] <- 0
 <!-- ``` -->
 
 
+
+
+```{r, fig.width = 16, fig.height = 6}
+
+names(tmp_selected) <- gsub('GSM2442457_N-K27me3-1.bedGraph.gz', 'ChIP_K27me3',
+                            names(tmp_selected))
+
+sorting <- as.factor(clu[tmp_idx])
+
+foo <- sort(factor(sorting, levels = 1:NUM_CLUSTERS))
+
+                        
+multiHeatMatrix(harmonize_sml(tmp_selected, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = foo,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+Requested order/requested panels
+
+
+
 ```{r}
 test$status <- 'else'
 test$status[grepl('KA', test$sample)] <- 'activated'
 test$status[grepl('PTZ', test$sample)] <- 'activated'
+test$status[grepl('ne', test$sample)] <- 'activated'
+test$status[grepl('ctrl', test$sample)] <- 'control'
 
 test$status[grepl('wt', test$sample)] <- 'control'
 test$status[grepl('Sal', test$sample)] <- 'control'
@@ -3412,7 +3584,7 @@ Sampling, loess smoothing
 ```{r, fig.width = 10, fig.height = 10}
 set.seed(134)
 test[sample(1:nrow(test), size = 2e5),] %>% 
-    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
     geom_smooth(method = "loess", se = FALSE, span = 0.15) +
     facet_grid(category~cluster, scales = "free") +
     theme_bw() +
@@ -3433,7 +3605,7 @@ test %>%
     group_by(cluster, sample, pos, status, category) %>%
     summarise_at(vars(value),
                list(value = median)) %>% 
-    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
     geom_line(lwd = 1) +
     facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
     theme_bw() +
@@ -3466,7 +3638,7 @@ test %>%
     group_by(cluster, sample, pos, status, category) %>%
     summarise_at(vars(value),
                list(value = function(x) median(winsorize(x, rang = c(1, 99))))) %>% 
-    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
     geom_line(lwd = 1) +
     facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
     theme_bw() +
@@ -3487,7 +3659,7 @@ test %>%
     group_by(cluster, sample, pos, status, category) %>%
     summarise_at(vars(value),
                list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>% 
-    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
     geom_line(lwd = 1) +
     facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
     theme_bw() +
@@ -3508,7 +3680,7 @@ test %>%
     group_by(cluster, sample, pos, status, category) %>%
     summarise_at(vars(value),
                list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>% 
-    ggplot(aes(x = pos, y = value,  color = cluster, group.by = sample, linetype = status)) +
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
 
     geom_smooth(method = "loess", se = TRUE, span = 0.05) + 
     facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
@@ -3857,12 +4029,12 @@ stop()
 <!-- ```{r} -->
 <!-- covs <- lapply(covs, function(x) ScoreMatrixBin(x, genes_asis, -->
 <!--                                                 is.noCovNA = TRUE, -->
-<!--                                                 bin.num = 50, -->
+<!--                                                 bin.num = 100, -->
 <!--                                                 type = "auto",  strand.aware = TRUE)) -->
 
 
 
-<!-- covs <- ScoreMatrixList(covs, bin.num = 50, cores = NTHREADS) -->
+<!-- covs <- ScoreMatrixList(covs, bin.num = 100, cores = NTHREADS) -->
 
 <!-- ``` -->
 
@@ -4071,18 +4243,18 @@ stop()
 
 
 <!-- <\!-- ## the weight col is the metadata one -\-> -->
-<!-- <\!-- ## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 50, weight.col = 'logFC') -\-> -->
+<!-- <\!-- ## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 100, weight.col = 'logFC') -\-> -->
 
 
 <!-- <\!-- edge_sm <- lapply(c(edge_pos, edge_neg), -\-> -->
 <!-- <\!--                   function(x) ScoreMatrixBin(x, genes_asis, -\-> -->
 <!-- <\!--                                              is.noCovNA = TRUE, -\-> -->
-<!-- <\!--                                              bin.num = 50, -\-> -->
+<!-- <\!--                                              bin.num = 100, -\-> -->
 <!-- <\!--                                              type = "auto",  strand.aware = TRUE)) -\-> -->
 
 
 
-<!-- <\!-- edge <- ScoreMatrixList(edge_sm, bin.num = 50, cores = NTHREADS) -\-> -->
+<!-- <\!-- edge <- ScoreMatrixList(edge_sm, bin.num = 100, cores = NTHREADS) -\-> -->
 <!-- <\!-- ``` -\-> -->
 
 
@@ -4169,18 +4341,18 @@ stop()
 
 
 <!-- <\!-- ## the weight col is the metadata one -\-> -->
-<!-- <\!-- ## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 50, weight.col = 'logFC') -\-> -->
+<!-- <\!-- ## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 100, weight.col = 'logFC') -\-> -->
 
 
 <!-- <\!-- edge_sm <- lapply(c(edge), -\-> -->
 <!-- <\!--                   function(x) ScoreMatrixBin(x, genes_asis, -\-> -->
 <!-- <\!--                                              is.noCovNA = TRUE, -\-> -->
-<!-- <\!--                                              bin.num = 50, -\-> -->
+<!-- <\!--                                              bin.num = 100, -\-> -->
 <!-- <\!--                                              type = "auto",  strand.aware = TRUE)) -\-> -->
 
 
 
-<!-- <\!-- edge <- ScoreMatrixList(edge_sm, bin.num = 50, cores = NTHREADS) -\-> -->
+<!-- <\!-- edge <- ScoreMatrixList(edge_sm, bin.num = 100, cores = NTHREADS) -\-> -->
 <!-- <\!-- ``` -\-> -->
 
 
@@ -4270,7 +4442,7 @@ stop()
 
 <!-- <\!-- ```{r} -\-> -->
 <!-- <\!-- ## ?ScoreMatrix -\-> -->
-<!-- <\!-- sml <- ScoreMatrixList(covs, wtranscripts, bin.num = 50, type = "auto",  strand.aware = TRUE, cores = NTHREADS, -\-> -->
+<!-- <\!-- sml <- ScoreMatrixList(covs, wtranscripts, bin.num = 100, type = "auto",  strand.aware = TRUE, cores = NTHREADS, -\-> -->
 <!-- <\!--                        is.noCovNA = TRUE) -\-> -->
 <!-- <\!-- ``` -\-> -->
 
@@ -4279,7 +4451,7 @@ stop()
 
 <!-- <\!-- sm_cpgi_transcripts <- ScoreMatrixBin(target = do.call(c, cpgi_mm10), -\-> -->
 <!-- <\!--                                 windows = wtranscripts, strand.aware = TRUE, -\-> -->
-<!-- <\!--                                 bin.num = 50) -\-> -->
+<!-- <\!--                                 bin.num = 100) -\-> -->
 
 
 <!-- <\!-- names(edge) <- gsub('edgeR_dge_results_', '', basename(names(edge))) -\-> -->
@@ -4326,7 +4498,7 @@ stop()
 
 <!-- <\!-- ## bws <- ScoreMatrixList(fns, genes_asis, -\-> -->
 <!-- <\!-- ##                        type = "auto",  strand.aware = TRUE, -\-> -->
-<!-- <\!-- ##                        bin.num = 50) -\-> -->
+<!-- <\!-- ##                        bin.num = 100) -\-> -->
 
 <!-- <\!-- curr <- list() -\-> -->
 <!-- <\!-- for (fn in fns) { -\-> -->
@@ -4343,7 +4515,7 @@ stop()
 
 
 <!-- <\!--     curr[[fn]] <- ScoreMatrixBin(tmp, -\-> -->
-<!-- <\!--                               bin.num = 50, -\-> -->
+<!-- <\!--                               bin.num = 100, -\-> -->
 <!-- <\!--                               genes_asis, -\-> -->
 <!-- <\!--                               type = "auto",  strand.aware = TRUE) -\-> -->
 
@@ -4356,7 +4528,7 @@ stop()
 <!-- <\!-- names(curr) -\-> -->
 
 
-<!-- <\!-- curr <- ScoreMatrixList(curr, bin.num = 50) -\-> -->
+<!-- <\!-- curr <- ScoreMatrixList(curr, bin.num = 100) -\-> -->
 
 <!-- <\!-- ``` -\-> -->
 
@@ -4535,7 +4707,7 @@ stop()
 
 <!-- <\!-- ## bws <- ScoreMatrixList(fns, genes_asis, -\-> -->
 <!-- <\!-- ##                        type = "auto",  strand.aware = TRUE, -\-> -->
-<!-- <\!-- ##                        bin.num = 50) -\-> -->
+<!-- <\!-- ##                        bin.num = 100) -\-> -->
 
 <!-- <\!-- curr <- list() -\-> -->
 <!-- <\!-- for (fn in fns) { -\-> -->
@@ -4552,7 +4724,7 @@ stop()
 
 
 <!-- <\!--     curr[[fn]] <- ScoreMatrixBin(tmp, -\-> -->
-<!-- <\!--                               bin.num = 50, -\-> -->
+<!-- <\!--                               bin.num = 100, -\-> -->
 <!-- <\!--                               genes_asis, -\-> -->
 <!-- <\!--                               type = "auto",  strand.aware = TRUE) -\-> -->
 
@@ -4565,7 +4737,7 @@ stop()
 <!-- <\!-- names(curr) -\-> -->
 
 
-<!-- <\!-- curr <- ScoreMatrixList(curr, bin.num = 50, cores = NTHREADS) -\-> -->
+<!-- <\!-- curr <- ScoreMatrixList(curr, bin.num = 100, cores = NTHREADS) -\-> -->
 
 <!-- <\!-- ``` -\-> -->
 
@@ -4630,7 +4802,7 @@ stop()
 <!-- <\!-- names(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161)) -\-> -->
 
 <!-- <\!-- ## joint <- ScoreMatrixList(list(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161), targets = genes_asis, -\-> -->
-<!-- <\!-- ##                          bin.num = 50) -\-> -->
+<!-- <\!-- ##                          bin.num = 100) -\-> -->
 
 <!-- <\!-- ## c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161) -\-> -->
 <!-- <\!-- ## c(sml_genes_with_cpg, GSE125068, GSE85873, curr) -\-> -->
