@@ -2834,12 +2834,20 @@ table(test$category, test$panel, useNA = 'always')
 ```{r}
 unique(test$category)
 ## selected <- c('CENP', 'ATAC', 'K4me3', 'K27ac', 'Pol2', 'CBP', 'K27me3')
-selected_metaplot <- c('CENP', 'ATAC', 'K4me3', 'K27ac', 'Pol2', 'CBP')
-selected_heatmap <- c('CENP', 'ATAC', 'K4me3', 'K27ac', 'Pol2', 'CBP',  'K27me3')
+## selected_metaplot <- c('CENP', 'ATAC', 'K4me3', 'Pol2', 'CBP')
+## selected_heatmap <- c('CENP', 'CpGi', 'CENP_liver', 'ATAC', 'K4me3', 'K27ac', 'Pol2', 'CBP',  'K27me3')
 
-selected_heatmap_samples <-  names(tmp) %in% unique(test[test$category %in% selected_heatmap, 'sample'])
+selected_metaplot <- c('CENP', 'K4me3', 'Pol2',  'CBP', 'ATAC')
+selected_heatmap <- c('CENP', 'CENP_liver',  'CpGi', 'K27ac', 'K27me3')
 
-tmp_selected <- tmp[selected_heatmap_samples]
+selected <- selected_metaplot
+## selected_heatmap_samples <-  names(tmp)[names(tmp) %in%
+##                                         unique(test[test$category %in%
+##                                                                  selected_heatmap, 'sample'])
+
+selected_heatmap_samples <- as.data.frame(unique(test[test$category %in% selected_heatmap, 'sample']))$sample
+                                        
+tmp_selected <- tmp[names(tmp) %in% selected_heatmap_samples]
 
 test <- test[test$category %in% selected_metaplot,]
 
@@ -2848,6 +2856,9 @@ test$category <- factor(test$category, levels = selected_metaplot)
 
 ```{r}
 test <- test[!test$sample %in% 'GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',]
+
+## for metaplotting the 'PTZ' is removed
+test <- test[!test$sample %in% 'cenp_PTZ_1',]
 ```
 
 
@@ -2862,7 +2873,7 @@ sorting <- as.factor(clu[tmp_idx])
 foo <- sort(factor(sorting, levels = 1:NUM_CLUSTERS))
 
                         
-multiHeatMatrix(harmonize_sml(tmp_selected, clu[tmp_idx]),
+multiHeatMatrix(harmonize_sml(tmp_selected, foo),
                 xcoords = c(minx, maxx),
                 group = foo,
                 order = TRUE,
@@ -3060,7 +3071,12 @@ ggplot(as.data.frame(test %>% group_by(cluster)),
 
 ```
 
+# The promoter zoom-in thing
 
+
+```{r}
+
+```
 
 ```{r}
 knitr::knit_exit()

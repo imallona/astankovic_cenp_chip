@@ -1051,7 +1051,7 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
 
     cat('### standard \n\n')
     
-    genomicElementDistribution(GRangesList(sel), 
+    print(genomicElementDistribution(GRangesList(sel), 
                                     TxDb = txdb,
                                     ignore.strand = FALSE,
                                labels = list(geneLevel = c(promoter = "Promoter",
@@ -1070,33 +1070,8 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
                                                CDS = "#FFFFFF",
                                                otherExon = "#FFFFFF"),
                                promoterRegion=c(upstream=1000, downstream=1000),
-                               geneDownstream=c(upstream=0, downstream=2000))
+                               geneDownstream=c(upstream=0, downstream=2000)))
 
-
-
-    ## gt <- ggplot_gtable(ggplot_build(p$plot))   
-
-    ## grid.newpage()
-    ## grid.draw(gt)
-    
-    ## ## we want to remove everything related to panel-6-
-    ## rm_grobs <- gt$layout$name %in% c("panel-1-2", "panel-1-3",
-    ##                                   "strip-t-1-2", "strip-t-1-3",
-    ##                                   "axis-l-1-2", "axis-l-1-3",
-    ##                                   "axis-r-1-2", "axis-r-1-3",
-    ##                                   "axis-b-1-2",
-    ##                                   "axis-t-1-2", "axis-t-1-3",
-    ##                                   "axis-l-2-1", "axis-l-2-1",
-    ##                                   "axis-l-3-1", "axis-l-3-1")
-
-    ## gt$heights[17] <- unit(0, "cm")
-    
-    ## ## remove grobs
-    ## gt$grobs[rm_grobs] <- NULL
-    ## gt$layout <- gt$layout[!rm_grobs, ]
-
-    ## grid.newpage()
-    ## grid.draw(gt)
     
     peaks <- genomicElementDistribution(GRangesList(sel), 
                                       TxDb = txdb,
@@ -1138,14 +1113,14 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
     
     cat('### custom \n\n')
     
-    foo %>% group_by(geneLevel, origin) %>% 
+    print(foo %>% group_by(geneLevel, origin) %>% 
         summarize(count = length(geneLevel)) %>%
         ggplot(aes(fill=geneLevel, y=count, x=origin)) + 
         geom_bar(position="fill", stat="identity") +
         theme_bw() +
         ylab('percent') +
         xlab('condition') +
-        ggtitle(sprintf('Quantile %s', quant))
+        ggtitle(sprintf('Quantile %s', quant)))
     
     
     cat('\n\n')
@@ -1468,8 +1443,6 @@ test %>% group_by(sample, cluster, pos) %>%
 
 ### Not scaled
 
-
-Not sure if this is correct!!!
 
 ```{r}
 
@@ -2436,21 +2409,10 @@ fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*bw
 
 fns <- grep('riboRNA', fns, value = TRUE, invert = TRUE)
 
-fns
-## ?ScoreMatrixList
-
-## the all_proms is already downsampled
-
-
-
-
-## bws <- lapply(fns, function(x) ScoreMatrix(x, windows = genes_asis,
-##                                            type = "auto",  strand.aware = TRUE))
 
 bws <- list()
 
 for (fn in fns) {
-    print(fn)
     bws[[basename(fn)]] <- tryCatch({
         ScoreMatrixBin(fn, windows = genes_asis,
                     type = "auto",
@@ -2638,48 +2600,47 @@ get(gse)
 
 This is the one with H3K4me3 and H3K4me1
 
-These are peaks, not signal. mm10, ncbi-style chrom names. 
+The public data were peaks, not signal/bws. mm10, ncbi-style chrom names. We've re-aligned them.
 
-```{r old_peaks, eval = FALSE}
-gse <- 'GSE85873'
+<!-- ```{r old_peaks, eval = FALSE} -->
+<!-- gse <- 'GSE85873' -->
 
 
-fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*gz$'))
+<!-- fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*gz$')) -->
 
-fns
-## fns <- grep('H3K4me', fns, value = TRUE)
+<!-- ## fns <- grep('H3K4me', fns, value = TRUE) -->
 
-peaks <- lapply(fns, function(x) readGeneric(x, header = TRUE, meta.col = list(score = 4)))
-names(peaks) <- basename(fns)
-names(peaks) <- gsub('.txt.gz', '', names(peaks))
+<!-- peaks <- lapply(fns, function(x) readGeneric(x, header = TRUE, meta.col = list(score = 4))) -->
+<!-- names(peaks) <- basename(fns) -->
+<!-- names(peaks) <- gsub('.txt.gz', '', names(peaks)) -->
 
-if (DOWNSAMPLE){
-    for (item in names(peaks)) {
-        seqlevelsStyle(peaks[[item]]) <- 'UCSC'
+<!-- if (DOWNSAMPLE){ -->
+<!--     for (item in names(peaks)) { -->
+<!--         seqlevelsStyle(peaks[[item]]) <- 'UCSC' -->
 
-        peaks[[item]] <- keepSeqlevels(peaks[[item]], "chr19", pruning.mode="coarse")
-    }
-} else {
-        for (item in names(peaks)) {
-        seqlevelsStyle(peaks[[item]]) <- 'UCSC'
+<!--         peaks[[item]] <- keepSeqlevels(peaks[[item]], "chr19", pruning.mode="coarse") -->
+<!--     } -->
+<!-- } else { -->
+<!--         for (item in names(peaks)) { -->
+<!--         seqlevelsStyle(peaks[[item]]) <- 'UCSC' -->
 
-        peaks[[item]] <- keepSeqlevels(peaks[[item]], allowed_chr, pruning.mode="coarse")
-    }
-}
+<!--         peaks[[item]] <- keepSeqlevels(peaks[[item]], allowed_chr, pruning.mode="coarse") -->
+<!--     } -->
+<!-- } -->
 
-names(peaks) <- c('K4me3_wt_HC_1', 'K4me3_wt_NE_1', 'K4me3_wt_HC_2', 'K4me3_wt_NE_2',
-                  'K4me1_WT')
+<!-- names(peaks) <- c('K4me3_wt_HC_1', 'K4me3_wt_NE_1', 'K4me3_wt_HC_2', 'K4me3_wt_NE_2', -->
+<!--                   'K4me1_WT') -->
 
-## names(peaks) <- c('K4me1_WT')
-peaks <- ScoreMatrixList(peaks,
-                         genes_asis,
-                         bin.num = 100,
-                         weight.col = 'score',
-                         is.noCovNA = TRUE,
-                         type = "auto",  strand.aware = TRUE)
+<!-- ## names(peaks) <- c('K4me1_WT') -->
+<!-- peaks <- ScoreMatrixList(peaks, -->
+<!--                          genes_asis, -->
+<!--                          bin.num = 100, -->
+<!--                          weight.col = 'score', -->
+<!--                          is.noCovNA = TRUE, -->
+<!--                          type = "auto",  strand.aware = TRUE) -->
 
-assign(gse, peaks)
-```
+<!-- assign(gse, peaks) -->
+<!-- ``` -->
 
 
 
@@ -2761,7 +2722,7 @@ for (item in names(test)) {
     fd$cluster <- paste0('cluster ', clu[tmp_idx])
     fd$sample <- item
     ## colnames(fd) <- paste0('pos', colnames(fd))
-    head(fd)
+    ## head(fd)
     fd <- as.data.frame(fd) %>% 
         pivot_longer(
             cols = -c(window, cluster, sample),
@@ -2790,12 +2751,6 @@ test %>% group_by(sample, cluster, pos) %>%
 ```
 
 
-```{r}
-assign(gse, peaks)
-get(gse)
-
-```
-
 
 ## CENPA in non-neurons (liver) {.tabset .tabset-pills}
 
@@ -2805,8 +2760,8 @@ Is CENPA binding to these promoters something neuron-specific?
 
 gse <- 'lung_liver_cenp'
 
-(fns <- file.path(PUBLIC, gse, 'out', 'bamCoverage',
-                  list.files(file.path(PUBLIC, gse, 'out', 'bamCoverage'), pattern = '.*bw$')))
+fns <- file.path(PUBLIC, gse, 'out', 'bamCoverage',
+                  list.files(file.path(PUBLIC, gse, 'out', 'bamCoverage'), pattern = '.*bw$'))
 
 fns <- grep('filtered', fns, invert = TRUE, value = TRUE)
 
@@ -2958,7 +2913,7 @@ for (fn in fns) {
     rm(tmp)        
 }
 
-names(curr)
+
 names(curr) <- c("CREB_SC_un_B1",
                  "CREB_SC_KCl_B1",
                  "CREB_SC_un_B2",
@@ -3380,6 +3335,22 @@ multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
 
 ```
 
+test on resorting the thing
+
+```{r}
+
+sorting <- as.factor(clu[tmp_idx])
+
+foo <- sort(factor(sorting, levels = 1:NUM_CLUSTERS))
+
+multiHeatMatrix(harmonize_sml(tmp, foo),
+                xcoords = c(minx, maxx),
+                group = foo,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+```
 
 
 ```{r, fig.width = 10, fig.height = 6}
@@ -3407,15 +3378,15 @@ test <- do.call(rbind.data.frame, test)
 
 test$pos <- as.numeric(gsub('V', '', test$pos))
 
-test %>% group_by(sample, cluster, pos) %>% 
-    summarise(mean_value = mean(value),
-              median_value = median(value)) %>%
-    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
-    geom_point() +
-    geom_smooth(span = .2) +
-    facet_wrap(~cluster) +
-    theme_bw() +
-    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+## test %>% group_by(sample, cluster, pos) %>% 
+##     summarise(mean_value = mean(value),
+##               median_value = median(value)) %>%
+##     ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+##     geom_point() +
+##     geom_smooth(span = .2) +
+##     facet_wrap(~cluster) +
+##     theme_bw() +
+##     scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
 
 
 ```
@@ -3488,15 +3459,24 @@ table(test$category, test$panel, useNA = 'always')
 ```
 
 ```{r}
-unique(test$category)
+
 ## selected <- c('CENP', 'ATAC', 'K4me3', 'K27ac', 'Pol2', 'CBP', 'K27me3')
-selected_metaplot <- c('CENP', 'K27ac', 'K4me3', 'Pol2', 'CBP', 'nuRNA')
+## selected_metaplot <- c('CENP', 'K27ac', 'K4me3', 'Pol2', 'CBP', 'nuRNA')
+## selected_heatmap <- c('CENP', 'K27ac', 'K27me3')
+
+selected_metaplot <- c('CENP',   'K4me3', 'Pol2', 'CBP', 'nuRNA', 'ATAC')
 selected_heatmap <- c('CENP', 'K27ac', 'K27me3')
 
 
-selected_heatmap_samples <-  names(tmp) %in% unique(test[test$category %in% selected_heatmap, 'sample'])
+selected <- selected_metaplot
 
-tmp_selected <- tmp[selected_heatmap_samples]
+## selected_heatmap_samples <-  names(tmp) %in% unique(test[test$category %in% selected_heatmap, 'sample'])
+
+## tmp_selected <- tmp[selected_heatmap_samples]
+
+selected_heatmap_samples <- as.data.frame(unique(test[test$category %in% selected_heatmap, 'sample']))$sample
+                                        
+tmp_selected <- tmp[names(tmp) %in% selected_heatmap_samples]
 
 test <- test[test$category %in% selected_metaplot,]
 
@@ -3505,6 +3485,9 @@ test$category <- factor(test$category, levels = selected_metaplot)
 
 ```{r}
 test <- test[!test$sample %in% 'GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',]
+
+## for metaplotting the 'PTZ' is removed
+test <- test[!test$sample %in% 'cenp_PTZ_1',]
 ```
 
 
@@ -3540,7 +3523,7 @@ sorting <- as.factor(clu[tmp_idx])
 foo <- sort(factor(sorting, levels = 1:NUM_CLUSTERS))
 
                         
-multiHeatMatrix(harmonize_sml(tmp_selected, clu[tmp_idx]),
+multiHeatMatrix(harmonize_sml(tmp_selected, foo),
                 xcoords = c(minx, maxx),
                 group = foo,
                 order = TRUE,
