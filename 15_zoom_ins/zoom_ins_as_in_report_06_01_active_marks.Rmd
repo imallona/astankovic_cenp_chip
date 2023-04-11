@@ -1,0 +1,1047 @@
+---
+title: "CENP ChiP-seq and other epigenomic (public) data"
+author: "Izaskun Mallona at Mark D. Robinson lab, University of Zurich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+params:
+  seed: 6
+---
+
+
+```{r, message = FALSE}
+suppressPackageStartupMessages({
+    library(knitr)
+    library(genomation)
+    library(Rsamtools)
+    library('TxDb.Mmusculus.UCSC.mm10.knownGene')
+    library(AnnotationHub)
+    library(rtracklayer)
+    library(org.Mm.eg.db)
+    library(viridis)
+})
+```
+
+
+```{r}
+.libPaths('/home/imallona/R/R4_bioc314/')
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(autodep = TRUE, cache = FALSE,
+                      cache.lazy = FALSE,
+                      dev = c("png", "svg"),
+                      fig.width = 5, fig.height = 5,
+                      dev.args = list(png = list(type = "cairo")),
+                      warning = FALSE, message = FALSE)
+```
+
+```{r}
+DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
+
+## if downsampled, only chr19
+DOWNSAMPLE <- FALSE
+```
+
+```{r}
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+all_proms <- promoters(txdb, upstream = 2000, downstream = 1000)
+
+genes_proms <- promoters(genes(txdb), upstream = 2000, downstream = 1000)
+
+tsss <- resize(transcripts(txdb), width = 1, fix = 'start')
+
+if (DOWNSAMPLE) {
+    all_proms <- keepSeqlevels(all_proms, "chr19", pruning.mode="coarse")
+    genes_proms <- keepSeqlevels(genes_proms, "chr19", pruning.mode="coarse")
+    tsss <-  keepSeqlevels(tsss, "chr19", pruning.mode="coarse")
+}
+
+## genes <- genes(txdb)
+
+
+```
+
+
+```{r}
+genes_proms$symbol <- mapIds(org.Mm.eg.db,
+                           keys = genes_proms$gene_id,
+                           column = "SYMBOL",
+                           keytype = "ENTREZID",
+                           multiVals = "first")
+genes_proms$ensembl <- mapIds(org.Mm.eg.db,
+                              keys = genes_proms$gene_id,
+                              column = "ENSEMBL",
+                              keytype = "ENTREZID",
+                              multiVals = "first")
+```
+
+# On BAM files, promoters
+
+```{r}
+
+## param_canonical <- 
+bams <- file.path(DATA, 'Bowtie2', list.files(file.path(DATA, 'Bowtie2'), pattern = '.*1.*bam$'))
+bams
+## ?ScoreMatrixList
+
+canonical <-  scanBamHeader(bams[[1]])[[1]][["targets"]]
+canonical <- canonical[grep('chr', names(canonical))]
+
+if (DOWNSAMPLE) {
+    chr19 <- canonical['chr19']
+    selected <- GRanges(names(canonical), IRanges(1, unname(chr19)))
+} else {
+    selected <- GRanges(names(canonical), IRanges(1, unname(canonical)))
+}
+
+
+param <- ScanBamParam(which=selected)
+## seqnames(all_proms)
+## all_proms <- all_proms[seqnames(all_proms) %in% names(canonical)]
+
+all_proms <- keepStandardChromosomes(all_proms, pruning.mode="coarse")
+
+sml <- ScoreMatrixList(bams, all_proms, bin.num = 50, type = "bam", param = param,
+                       strand.aware = TRUE)
+names(sml) <- gsub('.bam', '', names(sml))
+```
+
+Without scaling
+
+```{r, fig.width = 12, fig.height = 8}
+## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
+
+multiHeatMatrix(sml, xcoords = c(-2000, 1000),
+                clust.matrix = 1:2)
+
+```
+
+Scaled
+
+
+```{r, fig.width = 12, fig.height = 8}
+sml.scaled <- scaleScoreMatrixList(sml)
+set.seed(1)
+multiHeatMatrix(sml.scaled,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                clust.matrix = 1:2)
+```
+
+
+Is that signal in inputs CpG islands? mm38==mm10 CpGi
+
+```{r, fig.width = 12, fig.height = 8}
+## library(AnnotationHub)
+ah <- AnnotationHub()
+# retrieve CpG island data from annotationHub
+cpgi_query <- query(ah, c("Islands", "UCSC",  "Mus musculus"))
+
+cpgi <- ah[[names(cpgi_query)]]
+
+## if (DOWNSAMPLE) {
+##     cpgi <- keepSeqlevels(cpgi, "chr19", pruning.mode="coarse") 
+## }
+
+(chainfiles <- query(ah , c("mm9", "mm10", "chainfile")))
+
+cpgi_mm10 <- rtracklayer::liftOver(x = cpgi, chain = chainfiles[['AH14596']])
+
+if (DOWNSAMPLE) {
+    cpgi_mm10 <- keepSeqlevels(cpgi_mm10, "chr19", pruning.mode="coarse") 
+}
+```
+
+
+```{r, fig.width = 12, fig.height = 8}
+
+sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
+                          windows = all_proms, strand.aware = TRUE)
+
+
+sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
+                                all_proms, bin.num = 50,
+                                strand.aware = TRUE)
+
+names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
+
+set.seed(1)
+multiHeatMatrix(sml_with_cpg,
+                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
+                clust.matrix = 1:2)
+```
+
+
+```{r}
+
+
+plotMeta(sml.scaled, xcoords=c(-2000, 1000))
+
+par(mar=c(5, 4, 4, 8), xpd=TRUE)
+
+legend(1200, 0.10,
+       legend = names(sml.scaled), col = as.numeric(as.factor(names(sml.scaled))),
+       pch =1) 
+```
+
+
+<!-- ```{r} -->
+<!-- query(ah, c("gc5BaseBw", "ucsc", "Mus musculus")) -->
+<!-- ``` -->
+
+
+
+
+<!-- Bare GC content -->
+
+<!-- ```{r, eval = TRUE} -->
+<!-- if (!file.exists('mm10.gc5Base.wig.gz')) { -->
+<!--     system('wget https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.gc5Base.wig.gz') -->
+<!-- } -->
+
+<!-- gc5 <- readGeneric('mm10.gc5Base.wig.gz', header = FALSE, -->
+<!--                    meta.cols = list(mean=10)) -->
+
+<!-- if (DOWNSAMPLE) { -->
+<!--     gc5 <-  keepSeqlevels(gc5, "chr19", pruning.mode="coarse")  -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- sm_gc <- ScoreMatrix(target = gc5, -->
+<!--                      windows = all_proms, -->
+<!--                      strand.aware = FALSE, -->
+<!--                      weight.col = 'mean') -->
+
+<!-- sm_gc.scaled <- scaleScoreMatrix(sm_gc) -->
+
+<!-- sml_with_cpg <- ScoreMatrixList(c(sml_with_cpg, sm_gc.scaled), -->
+<!--                               all_proms, bin.num = 2) -->
+
+<!-- names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'G+C' -->
+<!-- ``` -->
+
+
+<!-- ```{r , fig.width = 12, fig.height = 8} -->
+<!-- multiHeatMatrix(sml_with_cpg, -->
+<!--                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
+<!-- ``` -->
+
+<!-- Winsorizing -->
+
+<!-- ```{r winsor , fig.width = 12, fig.height = 8} -->
+<!-- set.seed(1) -->
+<!-- multiHeatMatrix(sml_with_cpg, -->
+<!--                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 5)$cluster, -->
+<!--                 clust.matrix = 1:2, -->
+<!--                 winsorize = c(1, 99)) -->
+<!-- ``` -->
+
+<!-- # On bams, TSSs -->
+
+
+<!-- ```{r} -->
+<!-- tsss <-  keepStandardChromosomes(tsss, pruning.mode="coarse") -->
+
+<!-- sml2 <- ScoreMatrixList(bams, tsss, bin.num = 50, type = "bam", param = param, -->
+<!--                         strand.aware = TRUE) -->
+<!-- names(sml2) <- gsub('.bam', '', names(sml2)) -->
+<!-- ``` -->
+
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+<!-- ## names(sml2) <- sampleInfo$sampleName[match(names(sml2), sampleInfo$fileName)] -->
+
+<!-- multiHeatMatrix(sml2, xcoords = c(-500, 500), col = c("lightgray", "blue")) -->
+
+<!-- ``` -->
+
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+
+
+<!-- sml2.scaled <- scaleScoreMatrixList(sml2) -->
+
+<!-- multiHeatMatrix(sml2.scaled, xcoords = c(-500, 500), col = c("lightgray", "blue")) -->
+<!-- ``` -->
+
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+
+
+<!-- sml2.scaled <- scaleScoreMatrixList(sml2) -->
+
+<!-- multiHeatMatrix(sml2.scaled, xcoords = c(-2000, 2000), col = c("lightgray", "blue")) -->
+<!-- ``` -->
+
+
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+
+<!-- sml2_with_cpg <- ScoreMatrixList(c(sml2.scaled, sm_cpgi), -->
+<!--                                  tsss, bin.num = 50) -->
+
+<!-- names(sml2_with_cpg)[length(names(sml2_with_cpg))] <- 'CpGi' -->
+
+
+<!-- multiHeatMatrix(sml2_with_cpg, -->
+<!--                 xcoords = c(-2000, 2000), clustfun = function(x) kmeans(x, centers = 3)$cluster) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- knitr::knit_exit() -->
+<!-- ``` -->
+
+
+# On 'shifting' with high zoom levels  {.tabset .tabset-pills}
+
+Does CENP 'move' in PTZ? Let's center windows at TSSs. Clustering based on HC samples only.
+
+## 1000 nt up and down
+
+
+```{r}
+
+down <- 1000
+up <- 1000
+k <- 5
+
+zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
+
+if (DOWNSAMPLE) {
+    zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+}
+
+
+zoom_sml <- ScoreMatrixList(bams, zoomed_proms, bin.num = 100, type = "bam", param = param,
+                       strand.aware = TRUE)
+
+zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
+names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
+```
+
+```{r , fig.width = 12, fig.height = 8}
+multiHeatMatrix(zoom_sml.scaled,
+                xcoords = c(-down, up),
+                common.scale = TRUE,
+                clustfun = function(x) kmeans(x, centers = k)$cluster,
+                clust.matrix = 1:2)
+
+```
+
+```{r}
+
+plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
+         centralTrend = 'mean',
+         dispersion = 'se',
+         meta.rescale = FALSE,
+         xcoords = c(-down, up),         
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
+```
+
+
+Add vertical lines every 147 nt, to get an idea of where would tightly packed nucleosomes be
+
+```{r}
+plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
+         centralTrend = 'mean',
+         dispersion = 'se',
+         meta.rescale = FALSE,
+         xcoords = c(-down, up),         
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
+
+
+for (i in seq(-down, up, by = 147)) {
+    abline(v = i, col = 'black')
+}
+```
+
+
+
+## 500 nt up and down, 5 clusters
+
+```{r}
+
+down <- 500
+up <- 500
+k <- 5
+
+zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
+
+if (DOWNSAMPLE) {
+    zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+}
+
+
+zoom_sml <- ScoreMatrixList(bams, zoomed_proms, bin.num = 200, type = "bam", param = param,
+                       strand.aware = TRUE)
+
+zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
+names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
+
+```
+
+```{r , fig.width = 12, fig.height = 8}
+multiHeatMatrix(zoom_sml.scaled,
+                xcoords = c(-down, up),
+                common.scale = TRUE,
+                ## col = c('lightgray', 'blue'),
+                clustfun = function(x) kmeans(x, centers = k)$cluster,
+                clust.matrix = 1:2)
+
+```
+
+
+```{r}
+## plotMeta
+plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
+         centralTrend = 'mean',
+         dispersion = 'se',
+         meta.rescale = FALSE,
+         xcoords = c(-down, up),
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
+```
+
+
+Add vertical lines every 147 nt, to get an idea of where would tightly packed nucleosomes be (plus an offset)
+
+```{r}
+plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
+         centralTrend = 'mean',
+         dispersion = 'se',
+         meta.rescale = FALSE,
+         xcoords = c(-down, up),         
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
+
+
+for (i in seq(-down, up, by = 147)) {
+    abline(v = i, col = 'black')
+}
+```
+
+
+
+## 150 nt up and 50 down, 5 clusters
+
+```{r}
+
+down <- 150
+up <- 50
+k <- 5
+
+zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
+
+if (DOWNSAMPLE) {
+    zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+}
+
+
+zoom_sml <- ScoreMatrixList(bams, zoomed_proms, bin.num = 50, type = "bam", param = param,
+                       strand.aware = TRUE)
+
+zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
+names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
+```
+
+```{r , fig.width = 12, fig.height = 8}
+multiHeatMatrix(zoom_sml.scaled,
+                xcoords = c(-down, up),
+                common.scale = TRUE,
+                ## col = c('lightgray', 'blue'),
+                clustfun = function(x) kmeans(x, centers = k)$cluster,
+                clust.matrix = 1:2)
+
+```
+
+
+```{r}
+
+plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
+         centralTrend = 'mean',
+         dispersion = 'se',
+         meta.rescale = FALSE,
+         xcoords = c(-down, up),
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
+```
+
+
+
+## 50 nt up and 150 down, 10 clusters
+
+```{r}
+
+down <- 150
+up <- 50
+k <- 10
+
+zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
+
+if (DOWNSAMPLE) {
+    zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+}
+
+
+zoom_sml <- ScoreMatrixList(bams, zoomed_proms, bin.num = 50, type = "bam", param = param,
+                       strand.aware = TRUE)
+
+zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
+names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
+```
+
+```{r , fig.width = 12, fig.height = 8}
+multiHeatMatrix(zoom_sml.scaled,
+                xcoords = c(-down, up),
+                common.scale = TRUE,
+                ## col = c('lightgray', 'blue'),
+                clustfun = function(x) kmeans(x, centers = k)$cluster,
+                clust.matrix = 1:2)
+
+```
+
+
+```{r}
+
+plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
+         centralTrend = 'mean',
+         dispersion = 'se',
+         meta.rescale = FALSE,
+         xcoords = c(-down, up),
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
+```
+
+
+
+
+
+## 100 nt up and down, 5 clusters
+
+```{r}
+
+down <- 100
+up <- 100
+k <- 5
+
+zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
+
+if (DOWNSAMPLE) {
+    zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+}
+
+
+zoom_sml <- ScoreMatrixList(bams, zoomed_proms, bin.num = 200, type = "bam", param = param,
+                       strand.aware = TRUE)
+
+zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
+names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
+```
+
+```{r , fig.width = 12, fig.height = 8}
+multiHeatMatrix(zoom_sml.scaled,
+                xcoords = c(-down, up),
+                common.scale = TRUE,
+                ## col = c('lightgray', 'blue'),
+                clustfun = function(x) kmeans(x, centers = k)$cluster,
+                clust.matrix = 1:2)
+```
+
+```{r}
+plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
+         centralTrend = 'mean',
+         dispersion = 'se',
+         meta.rescale = FALSE,
+         xcoords = c(-down, up),
+         line.col = c(rep('blue', 1), rep('red', 1),
+                      rep('gray', 1), rep ('darkgrey', 1)))
+```
+
+
+
+## 50 nt up and down, 5 clusters
+
+```{r}
+
+down <- 50
+up <- 50
+k <- 5
+
+zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
+
+if (DOWNSAMPLE) {
+    zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+}
+
+
+zoom_sml <- ScoreMatrixList(bams, zoomed_proms, bin.num = 50, type = "bam", param = param,
+                       strand.aware = TRUE)
+
+zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
+names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
+```
+
+```{r , fig.width = 12, fig.height = 8}
+multiHeatMatrix(zoom_sml.scaled,
+                xcoords = c(-down, up),
+                common.scale = TRUE,
+                ## col = c('lightgray', 'blue'),
+                clustfun = function(x) kmeans(x, centers = k)$cluster,
+                clust.matrix = 1:2)
+
+```
+
+
+```{r}
+
+plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
+         centralTrend = 'mean',
+         dispersion = 'se',
+         meta.rescale = FALSE,
+         xcoords = c(-down, up),
+         line.col = c(rep('blue', 3), rep('red', 3),
+                      rep('gray', 3), rep ('darkgrey', 3)))
+```
+
+
+
+
+
+```{r}
+knitr::knit_exit()
+```
+
+# Candidates, on bams
+
+Immediate and deferred epigenomic signatures of in vivo neuronal activation in mouse hippocampus https://www.nature.com/articles/s41593-019-0476-2
+
+Cenpa is activity induced (AI) in nuRNA diff expression results (suppl table 1, https://static-content.springer.com/esm/art%3A10.1038%2Fs41593-019-0476-2/MediaObjects/41593_2019_476_MOESM3_ESM.xlsx)
+
+
+```{r}
+ieg <- read.csv('fernandezalbert_suptable1.csv.gz', sep = '\t')
+str(ieg)
+ieg <- makeGRangesFromDataFrame(ieg,
+                         keep.extra.columns=TRUE,
+                         ignore.strand=FALSE,
+                         seqinfo=NULL,
+                         seqnames.field=c("Chr"),
+                         start.field="Start",
+                         end.field=c("End"),
+                         strand.field="Strand",
+                         starts.in.df.are.0based=FALSE)
+
+if (DOWNSAMPLE) {
+    ieg <- keepSeqlevels(ieg, "chr19", pruning.mode="coarse")
+}
+
+```
+
+```{r}
+ad_idx <- which(genes_proms$ensembl %in% ieg[ieg$Expression == 'AD',]$GeneID)
+ai_idx <- which(genes_proms$ensembl %in% ieg[ieg$Expression == 'AI',]$GeneID)
+else_idx <- which(!genes_proms$ensembl %in% ieg$GeneID)
+```
+
+```{r, fig.width = 12, fig.height = 8}
+genes_proms <- keepStandardChromosomes(genes_proms, pruning.mode="coarse")
+
+genes_sml <- ScoreMatrixList(bams, genes_proms, bin.num = 50, type = "bam", param = param,
+                       strand.aware = TRUE)
+names(genes_sml) <- gsub('.bam', '', names(genes_sml))
+
+genes_sml.scaled <- scaleScoreMatrixList(genes_sml)
+
+
+## multiHeatMatrix(genes_sml.scaled, xcoords = c(-500, 500),
+##                 group = list(ad = ad_idx,
+##                              ai = ai_idx,
+##                              others = else_idx))
+```
+
+
+```{r, fig.width = 12, fig.height = 8}
+
+genes.sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
+                          windows = genes_proms, strand.aware = TRUE)
+
+genes.sml_with_cpg <- ScoreMatrixList(c(genes_sml.scaled, genes.sm_cpgi),
+                                genes_proms, bin.num = 50,
+                                strand.aware = TRUE)
+
+names(genes.sml_with_cpg)[length(names(genes.sml_with_cpg))] <- 'CpGi'
+
+multiHeatMatrix(genes.sml_with_cpg, xcoords = c(-2000, 1000),
+                group = list(ad = ad_idx,
+                             ai = ai_idx,
+                             others = else_idx))
+
+```
+
+
+```{r, fig.width = 12, fig.height = 8, eval = FALSE}
+set.seed(1)
+multiHeatMatrix(genes.sml_with_cpg, xcoords = c(-2000, 1000),
+                group = list(ad = ad_idx,
+                             ai = ai_idx,
+                             others = else_idx),
+                clustfun = function(x) kmeans(x, centers = 6)$cluster,
+                clust.matrix = 1:2)
+
+```
+
+```{r, fig.width = 12, fig.height = 8}
+set.seed(1)
+multiHeatMatrix(genes.sml_with_cpg ,
+                xcoords = c(-2000, 1000),
+                group = list(ad = ad_idx,
+                             ai = ai_idx,
+                             others = else_idx),
+                clustfun = function(x) kmeans(x, centers = 6)$cluster)
+
+## multiHeatMatrix(genes.sml_with_cpg ,
+##                 group = list(ad = ad_idx,
+##                              ai = ai_idx,
+##                              others = else_idx),
+##                 clustfun = function(x) kmeans(x, centers = 6)$cluster)
+
+```
+
+
+<!-- ```{r} -->
+<!-- knitr::knit_exit() -->
+<!-- ``` -->
+
+<!-- # On normalized bigWigs -->
+
+<!-- ```{r} -->
+<!-- ## windows <-  -->
+<!--     ## readBigWig(file.path(DATA, 'bamCoverage', 'input_HC_2.seq_depth_norm.bw')) -->
+<!-- sm = ScoreMatrix(file.path(DATA, 'bamCoverage', 'input_HC_2.seq_depth_norm.bw'), -->
+<!--                      windows = all_proms) -->
+
+
+
+<!-- heatMatrix(sm, xcoords = c(-1000, 1000)) -->
+<!-- plotMeta(sm, xcoords = c(-1000, 1000)) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+
+<!-- bws <- as.list(file.path(DATA, 'bamCoverage', -->
+<!--                          grep('filtered', list.files(file.path(DATA, 'bamCoverage'), -->
+<!--                                            pattern = '.seq_depth_norm.bw'), -->
+<!--                     invert = TRUE, value = TRUE))) -->
+<!-- names(bws) <- gsub('.seq_depth_norm.bw', '', -->
+<!--                    grep('filtered', list.files(file.path(DATA, 'bamCoverage'), -->
+<!--                                                pattern = '.seq_depth_norm.bw'), -->
+<!--                         invert = TRUE, value = TRUE)) -->
+
+<!-- bws <- lapply(bws, function(x) ScoreMatrix(target = x, windows = all_proms)) -->
+
+<!-- sml <- ScoreMatrixList(targets = bws, -->
+<!--                       windows = all_proms, -->
+<!--                       bin.num = 50, strand.aware = TRUE) -->
+<!-- multiHeatMatrix(sml, xcoords = c(-500, 500), col = c("lightgray", "blue")) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- annot <- data.frame(id = names(bws), -->
+<!--                     col = 'black', -->
+<!--                     batch = 'black') -->
+<!-- annot[grep('HC', annot$id), 'col'] <- 'blue' -->
+<!-- annot[grep('PTZ', annot$id), 'col'] <- 'orange' -->
+
+<!-- annot[grep('_1', annot$id), 'batch'] <- 'blue' -->
+<!-- annot[grep('_2', annot$id), 'batch'] <- 'red' -->
+<!-- annot[grep('_3', annot$id), 'batch'] <- 'green' -->
+<!-- annot[grep('input', annot$id), 'batch'] <- 'black' -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- par(mfrow = c(1,2)) -->
+
+<!-- plotMeta(sml, xcoords = c(-1000, 1000), profile.names = names(bws), line.col = annot$col, -->
+<!--          main = 'by treatment') -->
+<!-- ## ?plotMeta -->
+<!-- plotMeta(sml, xcoords = c(-1000, 1000), profile.names = names(bws), line.col = annot$batch, -->
+<!--          main = 'by batch') -->
+
+<!-- ``` -->
+
+
+# Public data
+
+One GSE appended to the all_promoters heatmap at a time
+
+```{r}
+## stop('')
+## knitr::knit_exit()
+```
+
+```{r gse_loop, eval = TRUE, fig.width = 70, fig.height = 10, results = 'asis'}
+PUBLIC <- '/home/imallona/cenp_chip/public/'
+
+## gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
+gses <- c('GSE52386', 'GSE82015', 'GSE93011')
+
+poster <- list('GSE52386' = c('GSM1264366_Forebrain_P56_H3K27ac_rep1.bed.gz'),
+               'GSE82015' = c('GSM2180001_E4_rep4.bed.gz'),
+               'GSE93011' = c('GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',
+                              'GSM2442459_N-K4me3-1.bedGraph.gz',
+                              'GSM2442457_N-K27me3-1.bedGraph.gz'))
+                              
+                              
+
+## just getting max NMAXbeds, NMAX wigs GSE for prototyping
+NMAX <- 40
+public <- list()
+for (gse in gses) {
+    cat('## ', gse, ' \n\n')
+    
+    ## public <- list()
+
+    i <- 1
+    fns <- list.files(file.path(PUBLIC, gse), pattern = '.*bed.*gz')
+    
+    fns <- grep('input', fns, invert = TRUE, value = TRUE)
+    fns <- grep('shRNA', fns, invert = TRUE, value = TRUE)
+    fns <- grep('Liver', fns, invert = TRUE, value = TRUE)
+    
+    for (fn in poster[[gse]]) {
+        tryCatch({
+            public[[paste(gse, fn)]] <- ScoreMatrix(
+                target = keepSeqlevels(x = readGeneric(file.path(PUBLIC, gse, fn),
+                                                       header = FALSE,
+                                                       skip = 1 ,
+                                                       keep.all.metadata = TRUE),
+                                       value = 'chr19',
+                                       pruning.mode = 'coarse'),
+                windows = all_proms, strand.aware = TRUE)
+
+
+        }, error = function(x) print(x))
+    }
+
+    cat('\n\n')
+}
+
+## stop('')
+```
+
+
+```{r  fig.width = 15, fig.height = 10, results = 'asis'}
+
+tmp <- scaleScoreMatrixList(c(sml_with_cpg, do.call(c, public)))
+print(names(tmp))
+
+
+## names(tmp) <- gsub('.bed.gz', '', names(tmp))
+## names(tmp) <- gsub('.bedGraph.gz', '', names(tmp))
+
+names(tmp) <- c('CENP\nNon-activated', 'CENP\nActivated', 'input\nNon-activated', 'input\nActivated',
+                 'CpGi', 'H3K27ac', 'ATAC-seq', 'PolII', 'H3K4me3', 'H4K27me3')
+
+print(names(tmp))
+
+tryCatch({
+    set.seed(1)
+    ## ?multiHeatMatrix
+
+    pal = RColorBrewer::brewer.pal(9,"Blues")
+    
+    multiHeatMatrix(tmp,
+                    xcoords = c(-2000, 1000),
+                    clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                    clust.matrix = 1:2,
+                    col = pal)
+}, error = function(x) print(x))
+
+## knitr::knit_exit()
+```
+
+
+```{r, fig.width = 10, fig.height = 10}
+tryCatch({
+    set.seed(1)
+    ## ?multiHeatMatrix
+
+    pal = RColorBrewer::brewer.pal(9,"Blues")
+    
+    multiHeatMatrix(tmp[c(1,2,5,6,7)],
+                    xcoords = c(-2000, 1000),
+                    clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                    clust.matrix = 1:2,
+                    col = pal)
+}, error = function(x) print(x))
+
+## knitr::knit_exit()
+```
+ 
+```{r, fig.width = 8, fig.height = 10}
+tryCatch({
+    set.seed(1)
+    ## ?multiHeatMatrix
+
+    pal = RColorBrewer::brewer.pal(9,"Blues")
+    
+    multiHeatMatrix(tmp[c(1,5,6,7)],
+                    xcoords = c(-2000, 1000),
+                    clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                    clust.matrix = 1,
+                    col = pal)
+}, error = function(x) print(x))
+
+knitr::knit_exit()
+```
+
+    ## j <- 1
+    ## wigs <- list.files(file.path(PUBLIC, gse), pattern = '.*wig.gz')
+    ## wigs <- grep('input', wigs, invert = TRUE, value = TRUE)
+
+    ## for (wig in wigs) {
+    ##     tryCatch({
+    ##         if (!DOWNSAMPLE) {
+    ##             public[[paste(gse, wig)]] <- ScoreMatrix(
+    ##                 target = rtracklayer::import.wig(gzfile(file.path(PUBLIC, gse, wig))),
+    ##                 windows = all_proms, strand.aware = TRUE)
+    ##         } else {
+    ##             public[[paste(gse, wig)]] <- ScoreMatrix(
+    ##                 target = keepSeqlevels(x = rtracklayer::import.wig(gzfile(file.path(PUBLIC, gse, wig))),
+    ##                                        value = 'chr19',
+    ##                                        pruning.mode = 'coarse'),
+    ##                 windows = all_proms, strand.aware = TRUE)
+
+    ##         }
+
+    ##         j <- j +1
+    ##     }, error = function(x) print(x))
+    ##     if (j > NMAX) break          
+    ## }
+
+    tmp <- scaleScoreMatrixList(c(sml_with_cpg, do.call(c, public)))
+    print(names(tmp))
+
+    names(tmp) <- gsub('.bed.gz', '', names(tmp))
+    names(tmp) <- gsub('.bedGraph.gz', '', names(tmp))
+
+    tryCatch({
+        set.seed(1)
+        multiHeatMatrix(tmp,
+                        xcoords = c(-2000, 1000),
+                        clustfun = function(x) kmeans(x, centers = 5)$cluster,
+                        clust.matrix = 1:2,
+                        col = c("lightgray", "blue"))
+    }, error = function(x) print(x))
+    
+    ## tmp2 <- scaleScoreMatrixList(c(sml, do.call(c, public)))
+
+    ## print(names(tmp2))
+    ## tryCatch({
+    ##     set.seed(1)
+    ##     multiHeatMatrix(tmp2,
+    ##                     xcoords = c(-2000, 1000),
+    ##                     clustfun = function(x) kmeans(x, centers = 5)$cluster,
+    ##                     clust.matrix = 1:2)
+    ## }, error = function(x) print(x))
+
+
+    tryCatch({
+        
+        plotMeta(tmp, xcoords=c(-2000, 1000))
+
+        ## par(xpd=TRUE)
+
+        legend('topright',
+               legend = names(tmp), col = as.numeric(as.factor(names(tmp))),
+               pch =1) 
+    }, error = function(x) print(x))
+
+    ## tryCatch({
+        
+    ##     plotMeta(tmp2, xcoords=c(-2000, 1000))
+
+    ##     ## par(xpd=TRUE)
+
+    ##     legend('topright',
+    ##            legend = names(tmp2), col = as.numeric(as.factor(names(tmp2))),
+    ##            pch =1) 
+    ## }, error = function(x) print(x))
+    
+    cat('\n\n')
+    
+}
+```
+
+
+
+```{r checkpoint}
+knitr::knit_exit()
+
+```
+
+```{r, fig.width = 15, fig.height = 15}
+
+
+multiHeatMatrix(scaleScoreMatrixList(do.call(c, public)),
+                xcoords = c(-2000, 1000),
+                clustfun = function(x) kmeans(x, centers = 4)$cluster)
+
+
+```
+
+```{r, fig.width = 15, fig.height = 15}
+multiHeatMatrix(scaleScoreMatrixList(do.call(c, public)),
+                xcoords = c(-2000, 1000),
+                clustfun = function(x) kmeans(x, centers = 6)$cluster)
+```
+
+```{r, fig.width = 15, fig.height = 15}
+
+test <- ScoreMatrixList(c(genes_sml.scaled, genes.sm_cpgi, do.call(c, public)),
+                                genes_proms,
+                                strand.aware = TRUE)
+
+```
+
+```{r, fig.width = 15, fig.height = 15}
+multiHeatMatrix(scaleScoreMatrixList(test),
+                xcoords = c(-2000, 1000),
+                clustfun = function(x) kmeans(x, centers = 6)$cluster)
+
+
+
+
+```
+
+
+```{r, eval = FALSE}
+## ?rtracklayer::import.wig
+file.path(PUBLIC, 'without_header', 'GSM1264392_Liver_P0_H3K27ac.wig.gz')
+test <-  rtracklayer::import.wig(gzfile(file.path(PUBLIC, 'without_header', 'GSM1264392_Liver_P0_H3K27ac.wig.gz')))
+
+test <-  rtracklayer::import.wig(gzfile(file.path(PUBLIC, 'GSE52386',
+                                                  'GSM1264392_Liver_P0_H3K27ac.wig.gz')))
+
+```
+
+# Trace
+
+```{r}
+sessionInfo()
+devtools::session_info()
+```

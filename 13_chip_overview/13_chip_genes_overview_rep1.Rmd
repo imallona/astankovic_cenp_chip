@@ -1,0 +1,4858 @@
+---
+title: "CENP ChiP-seq and other epigenomic (public) data, sample swap corrected"
+author: "Izaskun Mallona, Mark D. Robinson lab, University of Zurich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+params:
+  seed: 6
+---
+
+```{r}
+.libPaths('/home/imallona/R/R4_bioc314/')
+```
+
+```{r, message = FALSE}
+suppressPackageStartupMessages({
+    library(knitr)
+    library(genomation)
+    library(Rsamtools)
+    library('TxDb.Mmusculus.UCSC.mm10.knownGene')
+    library(AnnotationHub)
+    library(rtracklayer)
+    library(org.Mm.eg.db)
+    library(viridis)
+    library(RColorBrewer)
+    library(ggplot2)
+    library(dplyr)
+    library(ChIPpeakAnno)
+    library(tidyr)
+    library(GGally)
+})
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
+                      cache.lazy = FALSE,
+                      dev = c("png", "svg"),
+                      fig.width = 4, fig.height = 4,
+                      dev.args = list(png = list(type = "cairo")),
+                      warning = FALSE, message = FALSE)
+```
+
+This analysis is mm10.
+
+```{r}
+NTHREADS <- 20
+
+DATA <- file.path('/home/imallona', 'cenp_chip', 'mapping_without_dupes')
+PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
+
+## if downsampled, only chr19
+DOWNSAMPLE <- FALSE
+
+NUM_CLUSTERS <- 3
+
+BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
+```
+
+```{r, cache = FALSE}
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+```
+
+```{r}
+minx <- -0
+maxx <- 1
+
+## all_proms <- promoters(txdb, upstream = 2000, downstream = 2000)
+
+## genes_proms <- promoters(genes(txdb), upstream = 2000, downstream = 2000)
+
+genes_asis <- genes(txdb)
+
+## tsss <- resize(transcripts(txdb), width = 1, fix = 'start')
+
+allowed_chr <- paste0('chr', c(1:19, 'X'))
+
+if (DOWNSAMPLE) {
+    ## all_proms <- keepSeqlevels(all_proms, "chr19", pruning.mode="coarse")
+    ## genes_proms <- keepSeqlevels(genes_proms, "chr19", pruning.mode="coarse")
+    ## tsss <-  keepSeqlevels(tsss, "chr19", pruning.mode="coarse")
+    genes_asis <-  keepSeqlevels(genes_asis, "chr19", pruning.mode="coarse")
+} else {
+    ## all_proms <- keepSeqlevels(all_proms, allowed_chr, pruning.mode="coarse")
+    ## genes_proms <- keepSeqlevels(genes_proms, allowed_chr, pruning.mode="coarse")
+    ## tsss <-  keepSeqlevels(tsss, allowed_chr, pruning.mode="coarse")
+    genes_asis <-  keepSeqlevels(genes_asis, allowed_chr,  pruning.mode="coarse")
+}
+
+
+## genes <- genes(txdb)
+```
+
+Overlapping genes/features removed!
+
+```{r}
+genes_asis$ensembl <- mapIds(org.Mm.eg.db,
+                              keys = genes_asis$gene_id,
+                              column = "ENSEMBL",
+                              keytype = "ENTREZID",
+                              multiVals = "first")
+```
+
+<!-- Genes shorter than 200 bp removed - so we don't get things with CENP/promoter signal all across the genebody. -->
+
+<!-- ```{r} -->
+<!-- genes_asis <- genes_asis[width(genes_asis) >=200,] -->
+<!-- ``` -->
+
+Resize genes_asis with 10% up and downstream
+
+```{r}
+
+genes_asis <- trim(resize(genes_asis, width = width(genes_asis)*1.20, fix = "center"))
+
+```
+
+Remove overlaps
+
+```{r}
+## test to remove overlaps
+for (item in 'genes_asis') { # c('all_proms', 'genes_proms', 'tsss', 'genes_asis')) {
+    gr <- get(item)
+    gr <- gr[countOverlaps(gr, gr) <= 1L]
+    assign(x = item, value = gr)
+}
+
+```
+
+```{r coverages_load}
+covs_fns <- file.path(BEDGRAPHS, list.files(BEDGRAPHS, pattern = '.*bga.bedgraph.gz$'))
+
+covs <- lapply(covs_fns, function(x) readGeneric(x, header = TRUE, meta.col = list(cov = 4)))
+
+names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(covs_fns))
+
+
+if (DOWNSAMPLE) {
+    for (item in names(covs)) {
+        covs[[item]] <- keepSeqlevels(covs[[item]], "chr19", pruning.mode="coarse")
+    }
+} else {
+    for (item in names(covs)) {
+        covs[[item]] <- keepSeqlevels(covs[[item]], allowed_chr, pruning.mode="coarse")
+    }
+}
+```
+
+Rename sample swaps!!!
+
+```{r}
+names(covs)
+names(covs) <- c('cenp_HC_1', 'cenp_PTZ_23', 'cenp_PTZ_1', 'cenp_HC_23')
+names(covs)
+
+covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')]
+```
+
+Remove two replicates (will go to suplementary)
+
+```{r, eval = FALSE, cache = FALSE}
+covs[['cenp_HC_23']] <- NULL
+covs[['cenp_PTZ_23']] <- NULL
+```
+
+```{r}
+sml_genes <- ScoreMatrixList(covs, windows = genes_asis,
+                             bin.num = 100, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
+                             is.noCovNA = TRUE)
+```
+
+
+```{r}
+## we cluster once on CENPA-in-house-only, and reuse that for plotting across datasets
+mat.list = lapply(sml_genes, function(x) x@.Data)
+group.vector = NULL
+
+## clustering based on HC_1 and PTZ_1
+clust.matrix = 1:2
+mat2 = do.call("cbind", mat.list[clust.matrix])
+clustfun = function(x) kmeans(x, centers = NUM_CLUSTERS)$cluster
+
+set.seed(1)
+clu = clustfun(mat2)
+
+mat.list.genes <- mat.list
+rm( mat2, mat.list)
+
+```
+
+```{r}
+
+sml_genes_scaled <- scaleScoreMatrixList(sml_genes)
+
+mat.list = lapply(sml_genes_scaled, function(x) x@.Data)
+    group.vector = NULL
+
+## clustering based on HC_1 and PTZ_1
+clust.matrix = 1:2
+mat2 = do.call("cbind", mat.list[clust.matrix])
+clustfun = function(x) kmeans(x, centers = NUM_CLUSTERS)$cluster
+
+set.seed(1)
+clu_scaled = clustfun(mat2)
+
+mat.list.genes.scaled <- mat.list
+rm(mat.list, mat2)
+```
+
+
+# Stankovic data
+
+## Heatmaps genes ,sample swap corrected {.tabset .tabset-pills}
+
+### Nonscaled   {.tabset .tabset-pills}
+
+#### Original
+
+```{r noscaling, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes, xcoords = c(0, 100),
+                group = as.factor(clu),
+                order = TRUE)
+
+```
+
+
+```{r, fig.width = 8, fig.height = 6}
+## library(AnnotationHub)
+ah <- AnnotationHub()
+# retrieve CpG island data from annotationHub
+cpgi_query <- query(ah, c("Islands", "UCSC",  "Mus musculus"))
+
+cpgi <- ah[[names(cpgi_query)]]
+
+chainfiles <- query(ah , c("mm9", "mm10", "chainfile"))
+
+cpgi_mm10 <- rtracklayer::liftOver(x = cpgi, chain = chainfiles[['AH14596']])
+
+if (DOWNSAMPLE) {
+    cpgi_mm10 <- keepSeqlevels(cpgi_mm10, "chr19", pruning.mode="coarse")
+}
+```
+
+
+```{r}
+## reduce an sml to a the windows present in a clustering
+harmonize_sml <- function(sml, clu){
+    targets <- names(clu)
+    tmp <- sml
+    for (item in names(sml)) {
+        tmp[[item]] <- sml[[item]]@.Data[targets,]
+    }
+
+    return(tmp)
+}
+    
+```
+
+```{r, fig.width = 8, fig.height = 6}
+sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
+                          windows = genes_asis, strand.aware = TRUE,
+                          bin.num = 100)
+
+
+
+                                
+
+sml_genes_with_cpg <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes, sm_cpgi),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+
+sml_genes_with_cpg_idx <- dimnames(sml_genes_with_cpg@.Data[[1]])[[1]]
+max(sml_genes_with_cpg_idx)
+length(sml_genes_with_cpg_idx)
+sml_genes_with_cpg
+## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
+##                                 genes_proms, bin.num = 100,
+##                                 strand.aware = TRUE,
+##                                 cores = NTHREADS)
+
+names(sml_genes_with_cpg)[length(names(sml_genes_with_cpg))] <- 'CpGi'
+```
+
+
+```{r}
+sml_genes_scaled_with_cpg <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_scaled, sm_cpgi,
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS)),
+                                reorder = TRUE)
+sml_genes_scaled_with_cpg_idx <- dimnames(sml_genes_scaled_with_cpg@.Data[[1]])[[1]]
+
+## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
+##                                 genes_proms, bin.num = 100,
+##                                 strand.aware = TRUE,
+##                                 cores = NTHREADS)
+
+names(sml_genes_scaled_with_cpg)[length(names(sml_genes_scaled_with_cpg))] <- 'CpGi'
+```
+
+
+
+#### CpGi
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                group = as.factor(clu[sml_genes_with_cpg_idx]),
+                order = TRUE)
+```
+
+
+#### CpGi,  blues
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                group = as.factor(clu[as.character(sml_genes_with_cpg_idx)]),
+                col = brewer.pal(15,"Blues"),
+                order = TRUE)
+```
+
+#### CpGi,  viridis
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                group = as.factor(clu[as.character(sml_genes_with_cpg_idx)]),
+                order = TRUE,
+                col = viridis(9))
+
+```
+
+#### CpGi, winsorized, blues
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[as.character(sml_genes_with_cpg_idx)]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                winsorize = c(1,99),
+                order = TRUE,
+                col = brewer.pal(5,"Blues"))
+```
+
+#### CpGi,  winsorized, viridis
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[as.character(sml_genes_with_cpg_idx)]),
+                winsorize = c(1,99),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = TRUE,
+                col = viridis(9))
+
+```
+
+### Scaled   {.tabset .tabset-pills}
+
+
+#### As-is
+
+```{r noscaling_genes, fig.width = 8, fig.height = 6}
+
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled, xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                group = as.factor(clu),                
+                order = TRUE)
+
+```
+
+
+#### CpGi
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                group = as.factor(clu_scaled[sml_genes_scaled_with_cpg_idx]),  
+                xcoords = c(minx, maxx),
+                order = TRUE)
+```
+
+
+#### CpGi,  blues
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)]),
+                col = brewer.pal(15,"Blues"),
+                order = TRUE)
+```
+
+#### CpGi,  viridis
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                xcoords = c(minx, maxx),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)]),
+                order = TRUE,
+                col = viridis(9))
+
+```
+
+#### CpGi, winsorized, blues
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)]),
+                winsorize = c(1,99),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = TRUE,
+                col = brewer.pal(5,"Blues"))
+```
+
+#### CpGi,  winsorized, viridis
+
+```{r, fig.width = 8, fig.height = 6}
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu_scaled[as.character(sml_genes_scaled_with_cpg_idx)]),
+                winsorize = c(1,99),
+                order = TRUE,
+                col = viridis(9))
+
+```
+
+
+
+
+## Metaplots {.tabset .tabset-pills}
+
+Mind metaplots are not winsorized!!!
+
+### For genes, raw, with dispersions
+
+```{r, fig.width = 5, fig.height = 4}
+par(pty = 's')
+plotMeta(sml_genes, profile.names = names(sml_genes),
+         meta.rescale = FALSE,
+         lwd = 2,
+         smoothfun = NULL,
+                  centralTrend = 'mean',
+         dispersion = 'se', xcoords = c(0,1))
+```
+
+### For genes, rescaled
+
+```{r, fig.width = 5, fig.height = 4}
+par(pty = 's')
+plotMeta(sml_genes, profile.names = names(sml_genes),
+         meta.rescale = TRUE,
+         lwd = 2,
+         smoothfun = NULL, xcoords = c(0,1))
+```
+
+
+### With CpGi, rescaled, without dispersions
+
+```{r, fig.width = 5, fig.height = 4}
+par(pty = 's')
+plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg),
+         meta.rescale = TRUE,
+         lwd = 2,
+         smoothfun = NULL,
+                  centralTrend = 'mean',
+         ## dispersion = 'se',
+         xcoords = c(minx, maxx))
+```
+
+
+## Stratified metaplots without CpG islands {.tabset .tabset-pills}
+
+
+
+### Stratified / no val2unit / mean  {.tabset .tabset-pills}
+
+#### Heatmap
+
+```{r, fig.width = 10, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(sml_genes,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu),
+                winsorize = c(1,99),
+                col = viridis(9),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = TRUE)
+```
+
+#### Metaplot
+
+```{r, fig.heigh =8, fig.width = 8}
+set.seed(1)
+test <- lapply(sml_genes, function(x) return(x@.Data))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+
+    fd$cluster <- paste0('cluster ', clu)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+test <- do.call(rbind.data.frame, test)
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() + theme(aspect.ratio=1)
+
+```
+
+### Stratified / val2unit / mean  {.tabset .tabset-pills}
+
+
+#### Heat
+
+```{r, val2unit, fig.width = 10, fig.height = 8}
+## plotMeta
+
+val2unit <- function(x) {
+                (x - min(x, na.rm = TRUE))/(max(x, na.rm = TRUE) - 
+                  min(x, na.rm = TRUE))
+}
+
+set.seed(1)
+multiHeatMatrix(sml_genes,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                winsorize = c(1,99),
+                col = viridis(9),
+                order = TRUE)
+```
+
+#### Meta
+
+```{r, fig.width = 10, fig.height = 8}
+set.seed(1)
+test <- lapply(sml_genes, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+```
+
+
+### Stratified / val2unit / scaled/ mean   {.tabset .tabset-pills}
+
+#### Heat
+
+```{r , fig.width = 10, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu_scaled),
+                winsorize = c(1,99),
+                col = viridis(9),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = TRUE)
+
+```
+
+
+#### Meta
+
+```{r, fig.width = 10, fig.height = 8}
+set.seed(1)
+test <- lapply(sml_genes_scaled, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu_scaled)
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+
+
+```
+
+
+<!-- ### Smoothed, rescaled - old -->
+
+
+<!-- ```{r, fig.width = 16, fig.height = 12} -->
+
+<!-- chopped <- list() -->
+
+<!-- for (i in sort(unique(clu))) { -->
+<!--     print(i) -->
+<!--     chopped[[as.character(i)]] <- list() -->
+    
+<!--     for (id in names(sml_genes)) { -->
+<!--         chopped[[as.character(i)]][[id]] <- sml_genes[[id]] -->
+
+<!--         if (sum(clu == i) > 1) { -->
+            
+<!--             chopped[[as.character(i)]][[id]]@.Data <- sml_genes[[id]]@.Data[clu == i,] -->
+<!--         } -->
+<!--         else { -->
+<!--             ## chopped[[as.character(i)]][[id]]@dimnames[[1]] <- 1:2 -->
+<!--             tmp <- as.matrix( -->
+<!--                 rbind(sml_genes[[id]]@.Data[clu == i,], -->
+<!--                       sml_genes[[id]]@.Data[clu == i,])) -->
+
+<!--             tmp[1,] <- rep(NA, ncol(tmp)) -->
+<!--             dimnames(tmp)[[1]] <- 1:2 -->
+<!--             chopped[[as.character(i)]][[id]]@.Data <- tmp -->
+<!--         } -->
+        
+<!--     } -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+
+<!-- par(mfrow = c(2,3),  pty = 's') -->
+<!-- for (i in names(chopped)) { -->
+<!--     plotMeta(ScoreMatrixList(chopped[[i]]), -->
+<!--              profile.names = names(sml_genes), -->
+<!--              line.col = c('blue', 'black'), #, 'forestgreen'), -->
+<!--              meta.rescale = TRUE, -->
+<!--              lwd = 2, -->
+<!--              smoothfun = function(x) stats::lowess(x, f = 1/10), -->
+<!--              xcoords = c(minx, maxx), -->
+<!--              main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)), -->
+<!--              xaxt='n', -->
+<!--              xlab = 'location') -->
+
+<!--     axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', '')) -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- ### Smoothed, not rescaled -->
+
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+
+<!-- par(mfrow = c(2,3),  pty = 's') -->
+<!-- for (i in names(chopped)) { -->
+<!--     plotMeta(ScoreMatrixList(chopped[[i]]), -->
+<!--              profile.names = names(sml_genes), -->
+<!--              line.col = c('blue', 'black'), #, 'forestgreen'), -->
+<!--              meta.rescale = FALSE, -->
+<!--              lwd = 2, -->
+<!--              smoothfun = function(x) stats::lowess(x, f = 1/10), -->
+<!--              xcoords = c(minx, maxx), -->
+<!--              main = sprintf('smoothed signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)), -->
+<!--              xaxt='n', -->
+<!--              xlab = 'location') -->
+
+<!--     axis(1, at = c(0, 0.1, 0.9, 1), labels =  c('', 'TSS', 'TES', '')) -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- ### Non-smoothed -->
+
+<!-- ```{r, fig.width = 16, fig.height = 12} -->
+
+
+<!-- par(mfrow = c(2,3),  pty = 's') -->
+<!-- for (i in names(chopped)) { -->
+<!--     plotMeta(ScoreMatrixList(chopped[[i]]), -->
+<!--              profile.names = names(sml_genes), -->
+<!--              line.col = c('blue', 'black'), #, 'forestgreen'), -->
+<!--              meta.rescale = TRUE, -->
+<!--              lwd = 2, -->
+<!--              smoothfun = NULL, -->
+<!--              xcoords = c(minx, maxx), -->
+<!--              main = sprintf('raw signal cluster %s\nn: %s', i, nrow(chopped[[i]][[1]]@.Data)), -->
+<!--              xaxt='n', -->
+<!--              xlab = 'location') -->
+
+<!--     axis(1, at = c(0.1, 0.9), labels = c('TSS', 'TES')) -->
+<!-- } -->
+
+<!-- ``` -->
+
+<!-- <\!-- ### Rescaled, dispersions, lowess -\-> -->
+
+
+<!-- <\!-- ```{r, fig.width = 5, fig.height = 4} -\-> -->
+<!-- <\!-- par(pty = 's') -\-> -->
+<!-- <\!-- plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg), -\-> -->
+<!-- <\!--          meta.rescale = TRUE, -\-> -->
+<!-- <\!--          lwd = 2, -\-> -->
+<!-- <\!--          smoothfun = stats::lowess, -\-> -->
+<!-- <\!--          centralTrend = 'mean', -\-> -->
+<!-- <\!--          dispersion = 'se', -\-> -->
+<!-- <\!--          xcoords = c(minx, maxx)) -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+<!-- ### Rescaled, raw -->
+
+<!-- ```{r, fig.width = 5, fig.height = 4} -->
+<!-- par(pty = 's') -->
+<!-- plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg), -->
+<!--          meta.rescale = TRUE, -->
+<!--          lwd = 2, -->
+<!--          smoothfun = NULL, -->
+<!--          xcoords = c(minx, maxx)) -->
+<!-- ``` -->
+
+
+
+<!-- ### Rescaled, lowess -->
+
+<!-- ```{r, fig.width = 5, fig.height = 4} -->
+<!-- par(pty = 's') -->
+<!-- plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg), -->
+<!--          meta.rescale = TRUE, -->
+<!--          smoothfun = function(x) stats::lowess(x, f = 1/10), -->
+<!--          lwd = 2, -->
+<!--          xcoords = c(minx, maxx)) -->
+<!-- ``` -->
+
+<!-- ### Lowess, dispersions -->
+
+<!-- ```{r, fig.width = 5, fig.height = 4} -->
+<!-- par(pty = 's') -->
+<!-- plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg), -->
+<!--          meta.rescale = FALSE, -->
+<!--          lwd = 2, -->
+<!--          smoothfun = stats::lowess, -->
+<!--          centralTrend = 'mean', -->
+<!--          dispersion = 'se') -->
+<!-- ``` -->
+
+<!-- ### Rescaled, lowess, dispersions -->
+
+<!-- ```{r, fig.width = 5, fig.height = 4} -->
+<!-- par(pty = 's') -->
+<!-- plotMeta(sml_genes_with_cpg, profile.names = names(sml_genes_with_cpg), -->
+<!--          meta.rescale = TRUE, -->
+<!--          lwd = 2, -->
+<!--          smoothfun = stats::lowess, -->
+<!--          centralTrend = 'median', -->
+<!--          dispersion = 'sd') -->
+<!-- ``` -->
+
+
+## Stratified metaplots with CpG islands {.tabset .tabset-pills}
+
+
+
+### Stratified / no val2unit / mean {.tabset .tabset-pills}
+
+#### Heat
+
+```{r, fig.width = 10, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[sml_genes_with_cpg_idx]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                winsorize = c(1,99),
+                col = viridis(9),
+                order = TRUE)
+```
+
+#### Meta
+
+```{r fig.width = 6, fig.height = 6}
+set.seed(1)
+test <- lapply(sml_genes_with_cpg, function(x) return(x@.Data))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+
+    fd$cluster <- paste0('cluster ', clu[as.character(sml_genes_with_cpg_idx)])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+test <- do.call(rbind.data.frame, test)
+test$pos <- as.numeric(gsub('V', '', test$pos))
+table(test$cluster)
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw()
+
+```
+
+
+
+### Stratified / val2unit / mean {.tabset .tabset-pills}
+
+
+#### Heatmap
+
+```{r , fig.width = 10, fig.height = 8}
+## plotMeta
+
+
+set.seed(1)
+multiHeatMatrix(sml_genes_with_cpg,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[sml_genes_with_cpg_idx]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                winsorize = c(1,99),
+                col = viridis(9),
+                order = TRUE)
+```
+
+
+#### Meta
+
+```{r fig.height = 6, fig.width = 6}
+set.seed(1)
+test <- lapply(sml_genes_with_cpg, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[as.character(sml_genes_with_cpg_idx)])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+
+
+```
+
+
+### Stratified / val2unit / scaled/ mean {.tabset .tabset-pills}
+
+#### Heatmap
+
+```{r , fig.width = 10, fig.height = 8}
+
+set.seed(1)
+multiHeatMatrix(sml_genes_scaled_with_cpg,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu_scaled[sml_genes_scaled_with_cpg_idx]),
+                group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## user.order = 1:5,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9))
+```
+
+#### Meta
+
+```{r,fig.width = 6, fig.height = 6}
+set.seed(1)
+test <- lapply(sml_genes_scaled_with_cpg, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu_scaled[sml_genes_scaled_with_cpg_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+```
+
+
+
+# Check genome-wide binding, quantilized {.tabset .tabset-pills}
+
+Is CENP binding promoters anyway? Check, iteratively, the top signal, i.e. quantile 80 (top 20%), quantile 90 (top 10%) etc.
+
+
+```{r fig.height = 4, fig.width = 8, results = 'asis'}
+for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
+
+    cat('## Quantile', quant, ' {.tabset .tabset-pills} \n\n')
+    sel <- list()
+    for (item in names(covs)) {
+        sel[[item]] <- covs[[item]][!is.na(covs[[item]]$cov) &
+                                    covs[[item]]$cov >= quantile(covs[[item]]$cov, quant, na.rm = TRUE),]
+    }
+
+    sel <- sel[rev(names(sel))]
+
+    ## ?genomicElementDistribution
+
+    cat('### standard \n\n')
+    
+    print(genomicElementDistribution(GRangesList(sel), 
+                                    TxDb = txdb,
+                                    ignore.strand = FALSE,
+                               labels = list(geneLevel = c(promoter = "Promoter",
+                                                           geneDownstream = "Downstream",
+                                                           geneBody = "Gene body",
+                                                           distalIntergenic = "Intergenic")),
+                               ## labelColors = c(promoter = "#D55E00",
+                               ##                 geneDownstream = "#E69F00", 
+                               ##                 geneBody = "#51C6E6",
+                               ##                 distalIntergenic = "#AAAAAA",
+                               ##                 exon = "#FFFFFF", 
+                               ##                 intron = "#FFFFFF",
+                               ##                 intergenic = "#FFFFFF",
+                               ##                 utr5 = "#FFFFFF", 
+                               ##                 utr3 = "#FFFFFF",
+                               ##                 CDS = "#FFFFFF",
+                               ##                 otherExon = "#FFFFFF"),
+                               promoterRegion=c(upstream=1000, downstream=1000),
+                               geneDownstream=c(upstream=0, downstream=2000)))
+
+    
+    peaks <- genomicElementDistribution(GRangesList(sel), 
+                                      TxDb = txdb,
+                                      ignore.strand = FALSE,
+                                      labels = list(geneLevel = c(promoter = "Promoter",
+                                                                  geneDownstream = "Downstream",
+                                                                  geneBody = "Gene body",
+                                                                  distalIntergenic = "Intergenic")),
+                                      labelColors = c(promoter = "#D55E00",
+                                                      geneDownstream = "#E69F00", 
+                                                      geneBody = "#51C6E6",
+                                                      distalIntergenic = "#AAAAAA",
+                                                      exon = "#FFFFFF", 
+                                                      intron = "#FFFFFF",
+                                                      intergenic = "#FFFFFF",
+                                                      utr5 = "#FFFFFF", 
+                                                      utr3 = "#FFFFFF",
+                                                      CDS = "#FFFFFF",
+                                                      otherExon = "#FFFFFF"),
+                                      promoterRegion=c(upstream=1000, downstream=1000),
+                                      geneDownstream=c(upstream=0, downstream=2000),
+                                      plot = FALSE)
+
+    foo <- list(cenp_hc_1 = as.data.frame(mcols(peaks$peaks$cenp_HC_1)),
+                ## cenp_hc_23 = as.data.frame(mcols(peaks$peaks$cenp_HC_23)),
+                cenp_ptz_1 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_1))),
+                ## cenp_ptz_23 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_23)))
+
+    foo$cenp_hc_1$origin <- 'cenp_hc_1'
+    foo$cenp_ptz_1$origin <- 'cenp_ptz_1'
+    ## foo$cenp_hc_23$origin <- 'cenp_hc_23'
+    ## foo$cenp_ptz_23$origin <- 'cenp_ptz_23'
+    
+    foo <- do.call(rbind.data.frame, foo)
+
+    ## ggplot(foo, aes(fill=geneLevel, y=cov, x=origin)) + 
+    ##     geom_bar(position="fill", stat="identity") +
+    ##     theme_bw()
+
+    foo$geneLevel <- gsub('distalIntergenic', 'intergenic', foo$geneLevel)
+
+    cat('\n\n')
+    
+    cat('### custom \n\n')
+    
+    print(foo %>% group_by(geneLevel, origin) %>% 
+        summarize(count = length(geneLevel)) %>%
+        ggplot(aes(fill=geneLevel, y=count, x=origin)) + 
+        geom_bar(position="fill", stat="identity") +
+        theme_bw() +
+        ylab('proportion') +
+        xlab('condition') +
+        coord_flip() +
+        ggtitle(sprintf('Quantile %s', quant)))
+    
+    
+    cat('\n\n')
+}
+
+```
+
+
+
+
+
+
+<!-- # Custom plots -->
+
+<!-- ```{r attemptmeans, eval = TRUE} -->
+
+<!-- group.vector <- clu -->
+<!-- longer <- list() -->
+
+<!-- for (samp in names(mat.list.genes)) { -->
+<!--     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list.genes[[samp]]), cols = 1:ncol(mat.list.genes[[samp]]))$name) -->
+<!--     longer[[samp]] <- list() -->
+<!--     for (cl in unique(group.vector)) { -->
+<!--         idx <- rownames(as.data.frame(mat.list.genes[[samp]]))[group.vector == cl] -->
+<!--         tmp <- colMeans(as.data.frame(mat.list.genes[[samp]][idx,])) -->
+
+<!--         tmp <- data.frame(value = tmp, -->
+<!--                           pos = names(tmp), -->
+<!--                           cluster = cl, -->
+<!--                           sample = samp) -->
+<!--         longer[[samp]][[as.character(cl)]] <- tmp -->
+
+
+<!--     } -->
+<!--      longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]]) -->
+<!-- } -->
+
+
+<!-- longer <- do.call(rbind.data.frame, longer) -->
+
+<!-- longer$pos <- as.numeric(gsub('V', '', longer$pos)) -->
+<!-- longer$value[is.na(longer$value)] <- 0 -->
+
+<!-- head(longer) -->
+<!-- ``` -->
+
+
+<!-- ```{r, eval = TRUE, fig.width = 6, fig.height = 6} -->
+
+<!-- ## only some dots here - check -->
+
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = sample)) + -->
+<!--     geom_smooth(method = "loess") + -->
+<!--     facet_wrap(~ cluster) + -->
+<!--     theme(aspect.ratio=1) + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete(limits = c(-2000, 1e3)) + -->
+<!--     xlab('nucleotides from TSS') -->
+    
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- knitr::knit_exit() -->
+<!-- ``` -->
+
+
+# With public data
+
+## Differential gene expression {.tabset .tabset-pills}
+
+
+```{r}
+ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10'
+edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt'))
+
+edge_fns <- edge_fns[!grepl('treatmenttreated_48h-treatmenttreated_1h', edge_fns)]
+
+edge_pos <- list()
+edge_neg <- list()
+for (fn in edge_fns) {
+    ## tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12,
+    ##                                                       logCPM = 13, F = 14, pval = 15, padj = 16))
+
+    tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 9,
+                                                          logCPM = 10, F = 11, pval = 12, padj = 13))
+
+    ## tmp <- tmp[tmp$padj < 0.05,]
+
+    seqlevelsStyle(tmp) <- "UCSC"
+    if (DOWNSAMPLE) {
+         seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    } else {
+        
+        seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, allowed_chr, pruning.mode="coarse")
+        
+    }
+    
+    edge_pos[[paste0(fn, '_up')]] <- tmp[tmp$logFC >= 0]
+    edge_neg[[paste0( fn, '_down')]] <- tmp[tmp$logFC < 0]
+
+    ## swap logFC to be in the positive range
+    edge_neg[[paste0( fn, '_down')]]$logFC <- abs(edge_neg[[paste0( fn, '_down')]]$logFC)
+    
+    rm(tmp)
+}
+
+names(edge_pos) <-  gsub('.txt_up', '_up',
+                         gsub('treatment', '', gsub('edgeR_dge_results_', '', basename(names(edge_pos)))))
+names(edge_neg) <-   gsub('.txt_down', '_down',
+                         gsub('treatment', '', gsub('edgeR_dge_results_', '', basename(names(edge_neg)))))
+
+
+## the weight col is the metadata one
+## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 100, weight.col = 'logFC')
+
+
+edge_sm <- lapply(c(edge_pos, edge_neg),
+                  function(x) ScoreMatrixBin(x, genes_asis,
+                                             is.noCovNA = FALSE,
+                                             bin.num = 100,
+                                             type = "auto",  strand.aware = TRUE,
+                                             weight.col = 'logFC'))
+
+
+
+edge <- ScoreMatrixList(edge_sm, windows = genes_asis, bin.num = 100, cores = NTHREADS)
+## edge
+```
+
+### Heatmap expression alone
+
+
+```{r, fig.width = 12, fig.height = 4}
+
+## ?multiHeatMatrix
+## table(clu)
+set.seed(1)
+multiHeatMatrix(c(edge),
+                xcoords = c(minx, maxx),
+                ## clustfun = clu,
+                ## group.col = c('forestgreen', 'blue', 'red', 'black', 'orange'),
+                ## order = TRUE,
+                ## user.order = 1:5,
+                col = viridis(9),
+                cex.main = 0.6)
+
+```
+
+### With unscaled CENPa/CpGi {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 12, fig.height = 4}
+
+## sml_genes_with_cpg_edge <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, edge),
+##                                 genes_asis, bin.num = 100,
+##                                 strand.aware = TRUE,
+##                                 cores = NTHREADS),
+##                                 reorder = TRUE)
+
+## sml_genes_with_cpg_edge_idx <- dimnames(sml_genes_with_cpg_edge@.Data[[1]])[[1]]
+## ## length(sml_genes_with_cpg_edge_idx)
+## ## max(as.numeric(sml_genes_with_cpg_edge_idx))
+
+
+## sml_genes_scaled_with_cpg_edge <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_scaled_with_cpg, edge),
+##                                 genes_asis, bin.num = 100,
+##                                 strand.aware = TRUE,
+##                                 cores = NTHREADS),
+##                                 reorder = TRUE)
+
+## sml_genes_scaled_with_cpg_edge_idx <- dimnames(sml_genes_scaled_with_cpg_edge@.Data[[1]])[[1]]
+
+
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, edge),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+
+## length(sml_genes_scaled_with_cpg_edge_idx)
+## max(as.numeric(sml_genes_scaled_with_cpg_edge_idx))
+
+## table(clu[as.character(sml_genes_with_cpg_edge_idx)])
+## table(clu)
+
+set.seed(1)
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+
+
+```
+
+#### Meta 
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[as.character(tmp_idx)])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) +
+    theme(aspect.ratio=1)
+
+
+```
+
+### Scaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 12, fig.height = 4}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, scaleScoreMatrixList(edge)),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                winsorize = c(1,99),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+
+## Differential gene expression by cluster
+
+### Not scaled
+
+
+```{r}
+
+
+sml <-ScoreMatrixList(edge,
+                      genes_asis,
+                      bin.num = 100,
+                      is.noCovNA = TRUE,
+                      strand.aware = TRUE,
+                      cores = NTHREADS)
+
+
+targets <- names(clu)
+
+
+tmp <- sml
+for (item in names(sml)) {
+
+    detected <- rownames(sml[[item]]@.Data)
+
+    targets <- intersect(targets, detected)
+
+    sum(targets %in% rownames(sml[[item]]@.Data))
+    sum(!targets %in% rownames(sml[[item]]@.Data))
+    
+    
+    tmp[[item]] <- sml[[item]]@.Data[targets,]
+}
+
+max(as.numeric(names(clu)))
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+tmp
+length(clu)
+length(genes_asis$ensembl)
+
+
+
+```
+
+
+Rather, Annotation by generic features
+
+
+What about filtering genes in being up/down, get a genomic ranges, and then plot the cenp enrichment? 500 bp-windows viewpoint
+
+
+```{r}
+export_bed <- function(gr, outfile) {
+
+    gr <- sort(sortSeqlevels(gr))
+    fd <- data.frame(seqnames = seqnames(gr),
+                     starts = start(gr)-1,
+                     ends = end(gr),
+                     names = c(rep(".", length(gr))),
+                     scores = c(rep(".", length(gr))),
+                     strands = strand(gr))
+    fd <- cbind(fd, mcols(gr))
+
+    write.table(fd, file = outfile, quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+}
+
+
+dir.create('bed')
+
+export_bed(genes_asis, outfile = 'bed/genes.bed')
+```
+
+
+```{r}
+ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10'
+edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt'))
+
+edge_fns <- edge_fns[!grepl('treatmenttreated_48h-treatmenttreated_1h', edge_fns)]
+
+for (fn in edge_fns) {
+    ## tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12,
+    ##                                                       logCPM = 13, F = 14, pval = 15, padj = 16))
+
+    tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 9,
+                                                          logCPM = 10, F = 11, pval = 12, padj = 13))
+
+    ## tmp <- tmp[tmp$padj < 0.05,]
+
+    seqlevelsStyle(tmp) <- "UCSC"
+    if (DOWNSAMPLE) {
+         seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    } else {
+        
+        seqlevelsStyle(tmp) <- 'UCSC'
+        tmp <- keepSeqlevels(tmp, allowed_chr, pruning.mode="coarse")
+        
+    }
+    
+   export_bed(tmp,  outfile = file.path('bed', sprintf('%s_edge.bed', gsub('.txt', '', basename(fn)))))
+    
+    rm(tmp)
+}
+
+```
+
+
+
+<!-- ```{bash runmemanually_not_finished, eval = FALSE} -->
+<!-- mkdir -p bed -->
+<!-- ARMOR=/home/imallona/cenp_chip/public/GSE125068/in_house_armor_mm10 -->
+<!-- COVS=/home/imallona/cenp_chip/merged_replicates/ -->
+<!-- BEDTOOLS=~/soft/bedtools/bedtools-2.29.2/bin/bedtools -->
+
+<!-- sort -k1,1 -k2,2n bed/genes.bed > sorted -->
+<!-- mv sorted bed/genes.bed -->
+
+<!-- for edge in edgeR_dge_results_treatmenttreated_1h-treatmentcontrol_edge.bed \ -->
+<!--                 edgeR_dge_results_treatmenttreated_48h-treatmenttreated_6h_edge.bed \ -->
+<!--                 edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h_edge.bed -->
+<!-- do -->
+
+<!--     echo "$edge" -->
+<!--     edge=bed/"$edge" -->
+
+<!--     ## keeping the logFC column, plus sorting -->
+<!--     awk '{OFS=FS="\t"; print $1,$2,$3,$9,$10}' "$edge" | sort -k1,1 -k2,2n > narrower -->
+<!--     # mv narrower "$edge" -->
+
+<!--     mkdir -p closest -->
+<!--     $BEDTOOLS closest -D a \ -->
+<!--               -a bed/genes.bed \ -->
+<!--               -b narrower \ -->
+<!--               -t first -d > closest/$(basename "$edge" .bed).gene.closest -->
+
+<!--     rm narrower -->
+    
+<!-- done -->
+
+<!-- ## check the sample swaps!! -->
+
+<!-- for chip in chip_HC_2_3_cov_bga.bedgraph.gz \ -->
+<!--                 chip_HC_1_cov_bga.bedgraph.gz \ -->
+<!--                 chip_PTZ_2_3_cov_bga.bedgraph.gz \ -->
+<!--                 chip_PTZ_1_cov_bga.bedgraph.gz  -->
+<!-- do -->
+
+<!--     echo "$chip" -->
+<!--     chip=$COVS/"$chip" -->
+
+<!--     ## keeping the logFC column, plus sorting -->
+<!--     zcat "$chip" | grep -P "chr[0-9XY]{1,2}" | sort -k1,1 -k2,2n > sorted -->
+
+
+<!--     ## closest upstream, notice the fu flag -->
+<!--     ## grep canonical chromosomes -->
+<!--     $BEDTOOLS closest -fu -D a \ -->
+<!--               -a bed/genes.bed \ -->
+<!--               -b sorted \ -->
+<!--               -t first > closest/"$(basename $chip .bed)".gene.closest -->
+
+<!--     rm sorted     -->
+<!-- done -->
+
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+
+<!-- fns <- list.files('closest', '*closest') -->
+
+<!-- clos <- list() -->
+
+<!-- for (fn in fns) { -->
+<!--     tmp  <- read.table(file.path('closest', fn)) -->
+
+<!--     head(tmp) -->
+<!--     ## filterout high distances -->
+<!--     tmp[abs(tmp[,ncol(tmp)]) >= 2000, 'V12'] <- NA -->
+    
+   
+<!--    ## head(tmp) -->
+<!--    if (grepl('chip', fn)) { -->
+       
+<!--        tmp <- data.frame( value = tmp$V12, -->
+<!--                          gene = tmp$V8, -->
+<!--                          id = fn) -->
+<!--    } else if (grepl('edge', fn)) { -->
+<!--        tmp <- data.frame( value = tmp$V12, -->
+<!--                          gene = tmp$V8, -->
+<!--                          id = fn) -->
+<!--    } -->
+<!--    clos[[fn]] <- tmp -->
+<!-- } -->
+
+<!-- clos_wide <- do.call(cbind.data.frame, clos) -->
+<!-- str(clos_wide) -->
+<!-- colnames(clos_wide) -->
+
+<!-- ## ## install.packages('GGally') -->
+<!-- ## library("GGally") -->
+<!-- ## ggpairs(clos_wide[,grep('value', colnames(clos_wide))])+ -->
+<!-- ##     theme_bw() -->
+
+<!-- ``` -->
+
+<!-- # ggpairs {.tabset .tabset-pills} -->
+
+<!-- ```{r, fig.width = 10, fig.height = 7, results = 'asis', cache = FALSE} -->
+
+<!-- for (test in grep('edge', names(clos), value = TRUE)) { -->
+<!--     cat ('## ', test, '\n\n') -->
+    
+<!--     curr <- clos[c(grep('chip', names(clos), value =  TRUE), test)] -->
+
+<!--     wide <- do.call(cbind.data.frame, curr) -->
+
+<!--     logfc_id <- paste0(test, '.value') -->
+    
+<!--     wide$test <- 'ns' -->
+<!--     wide$test[wide[,logfc_id] < -1] <- 'down' -->
+<!--     wide$test[wide[, logfc_id] >= 1] <- 'up' -->
+
+
+<!--     names(wide) <- gsub('_cov_bga.bedgraph.gz.gene.closest', '', names(wide)) -->
+<!--     names(wide) <- gsub('edgeR_dge_results_treatment', '', names(wide)) -->
+<!--     names(wide) <- gsub('edge.gene.closest', '', names(wide)) -->
+
+<!--     names(wide) -->
+
+<!--     ## install.packages('GGally') -->
+
+<!--     plot(log1p(wide[,c(grep('value', colnames(wide), value = TRUE))])) -->
+    
+<!--     print(ggpairs(wide[,c(grep('value', colnames(wide), value = TRUE))], -->
+<!--             mapping=ggplot2::aes(col = wide$test))+ -->
+<!--         theme_bw() + -->
+<!--         scale_x_continuous(trans='log10') + -->
+<!--         scale_y_continuous(trans = 'log10')) -->
+
+<!--     cat('\n\n') -->
+<!--     ## scale_y_sqrt() + -->
+<!--     ##     scale_x_sqrt() -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- # Binned {.tabset .tabset-pills} -->
+
+<!-- ```{r, fig.width = 6, fig.height = 6, results = 'asis'} -->
+
+<!-- for (test in grep('edge', names(clos), value = TRUE)) { -->
+<!--     cat ('## ', test, ' {.tabset .tabset-pills}\n\n') -->
+    
+<!--     curr <- clos[c(grep('chip', names(clos), value =  TRUE), test)] -->
+
+<!--     names(curr) -->
+<!--     wide <- do.call(cbind.data.frame, curr) -->
+
+
+<!--     logfc_id <- paste0(test, '.value') -->
+
+
+<!--     k <- ceiling(max(abs(wide[, logfc_id]), na.rm = TRUE)) -->
+    
+    
+<!--     wide$logfc_bin <- cut(wide[, logfc_id], breaks = seq(-k, +k, by = 2)) -->
+
+<!--     ## colnames(wide) -->
+<!--     table(wide$logfc_bin) -->
+    
+<!--     names(wide) <- gsub('_cov_bga.bedgraph.gz.gene.closest', '', names(wide)) -->
+<!--     names(wide) <- gsub('edgeR_dge_results_treatment', '', names(wide)) -->
+<!--     names(wide) <- gsub('edge.gene.closest', '', names(wide)) -->
+<!--     names(wide) <- gsub('-', '_vs', names(wide)) -->
+
+<!--     names(wide) -->
+    
+<!--     names(wide)[grep('treated.*value', names(wide))] <- 'logFC' -->
+
+
+<!--     ## head(wide) -->
+
+<!--     cat('### chip HC 1 vs logfc bin \n\n') -->
+<!--     print(ggplot(wide, aes(x = logfc_bin, y =  chip_PTZ_1.value)) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           geom_point() + -->
+<!--           geom_violin() + -->
+<!--           theme_bw() + -->
+<!--           scale_y_continuous(trans='log1p') + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') + -->
+<!--           stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+ -->
+<!--           stat_summary(fun= function(x) mean(x) - sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") + -->
+<!--           stat_summary(fun= function(x) mean(x) + sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") -->
+          
+<!--           ) -->
+<!--     cat('\n\n') -->
+
+<!--     cat('### chip PTZ 1 vs logfc bin \n\n') -->
+<!--     print(ggplot(wide, aes(x = logfc_bin, y =  chip_HC_1.value)) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           ## geom_point() + -->
+<!--           geom_violin() + -->
+<!--           theme_bw() + -->
+<!--           scale_y_continuous(trans='log1p') + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') + -->
+<!--           stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+ -->
+<!--           stat_summary(fun= function(x) mean(x) - sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") + -->
+<!--           stat_summary(fun= function(x) mean(x) + sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") -->
+          
+<!--           ) -->
+
+<!--     cat('\n\n') -->
+
+<!--     ## install.packages('ggallin') -->
+<!--     cat('### chip PTZ 1 - chip HC_1 vs logfc bin \n\n') -->
+<!--     print(ggplot(wide, aes(x = logfc_bin, y =  chip_HC_1.value - chip_PTZ_1.value)) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           ## geom_point() + -->
+<!--           geom_violin() + -->
+<!--           theme_bw() + -->
+<!--           ## scale_y_continuous(trans='log1p') + -->
+<!--           ## scale_y_continuous(trans = ggallin::pseudolog10_trans) + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') + -->
+<!--           stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="blue")+ -->
+<!--           stat_summary(fun= function(x) mean(x) - sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") + -->
+<!--           stat_summary(fun= function(x) mean(x) + sd(x), -->
+<!--                        geom="point", shape=18, size=3, color="blue", fill="blue") + -->
+<!--           geom_hline(yintercept = 0) -->
+          
+<!--           )  -->
+
+<!--     cat('\n\n') -->
+
+<!--     cat('### chip PTZ 1 - HC 1 chip vs logfc \n\n') -->
+    
+<!--     ## colnames(wide) -->
+<!--     print(ggplot(wide, aes(x = logFC, -->
+<!--                            y =  chip_PTZ_1.value - chip_HC_1.value)) + -->
+<!--            geom_density_2d(bins = 50) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           theme_bw() + -->
+<!--           ## scale_y_sqrt() + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') + -->
+<!--           geom_smooth()) -->
+
+<!--     cat('\n\n') -->
+
+<!--     cat('### chip PTZ 1 vs logfc \n\n') -->
+    
+<!--     print(ggplot(wide, aes(x = logFC, -->
+<!--                            y =  chip_PTZ_1.value)) + -->
+<!--           geom_density_2d(bins = 50) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           theme_bw() + -->
+<!--           scale_y_sqrt() + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') -->
+<!--           ## geom_smooth() -->
+<!--           ) -->
+
+<!--     cat('\n\n') -->
+
+<!--     cat('### chip HC 1 vs logfc \n\n') -->
+
+<!--     print(ggplot(wide, aes(x = logFC, -->
+<!--                            y =  chip_HC_1.value)) + -->
+<!--           geom_density_2d(bins = 50) + -->
+<!--           geom_point(alpha = 0.1, size = 1) + -->
+<!--           theme_bw() + -->
+<!--           scale_y_sqrt() + -->
+<!--           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--           xlab('expression logFC') -->
+<!--           ## geom_smooth() -->
+<!--           ) -->
+    
+<!--     cat('\n\n') -->
+<!--     ## scale_y_sqrt() + -->
+<!--     ##     scale_x_sqrt() -->
+<!-- } -->
+
+
+<!-- ``` -->
+
+
+# On just summing reads in promoters, for some promoter definition {.tabset .tabset-pills}
+
+```{bash, eval = FALSE}
+echo "run promoter_chip_expression_bedtools.sh instead"
+```
+
+```{r}
+fns <- list.files('/home/imallona/tmp/ana', pattern = ".*txt$")
+
+proms <- list()
+
+for (fn in fns) {
+    tmp  <- read.table(file.path('/home/imallona/tmp/ana', fn))[,4:8]
+    colnames(tmp) <- c('logFC', 'logCPM', 'cenp_nreads', 'cenp_meanreads',
+                       'cenp_medianreads')
+    
+    tmp$contrast <- gsub('treatment', '',
+         gsub('edgeR_dge_results_treatment', '', sapply(strsplit(fn, split = '__'), function(x) return(x[1]))))
+
+
+    tmp$chip <- gsub('.txt', '', sapply(strsplit(fn, split = '__'), function(x) return(x[2])))
+
+    proms[[fn]] <- tmp
+}
+
+long <- do.call(rbind.data.frame, proms)
+wide <- do.call(cbind.data.frame, proms)
+
+```
+
+Add a delta
+
+```{r}
+
+## doesn't matter which contrast, chip is chip/regardless of edgeR
+wide$delta_cenp_reads_23 <- wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_2_3.txt.cenp_nreads` -
+    wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_2_3.txt.cenp_nreads`
+
+wide$delta_cenp_reads_1 <- wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_1.txt.cenp_nreads` -
+    wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_1.txt.cenp_nreads`
+
+```
+
+Normalize by 1 M centromeric reads
+
+
+```{r}
+## ~/cenp_chip/nested_mapping/chip_HC_1_oligomerized/log
+hc_1_centrom <- 0.5978 * 49536148
+## ~/cenp_chip/nested_mapping/chip_PTZ_1_oligomerized/log
+ptz_1_centrom <- 0.6888*38482901
+
+counts_per_million_centromeric_reads <- function(x, centrom_total) {
+    return(x * centrom_total / 1e6)
+}
+
+counts_per_million_centromeric_reads(1, centrom_total = hc_1_centrom)
+counts_per_million_centromeric_reads(1, centrom_total = ptz_1_centrom)
+
+```{r}
+wide$delta_cenp_cpmc_1 <- counts_per_million_centromeric_reads(wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_1.txt.cenp_nreads`, ptz_1_centrom) -
+    counts_per_million_centromeric_reads(wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_1.txt.cenp_nreads`, hc_1_centrom)
+
+
+
+## mind the sample swap for reps 2 and 3 before adding them
+
+```
+
+
+Note: `delta_cenp_reads_1` means the direct `cenp_chip_PTZ_1 - cenp_chip_HC_1` subtract value; whereas `delta_cenp_cpmc_1` depicts the same delta PTZ vs HC counts per promoter, but transformed/normalized as `counts per million centromeric reads`. Of course, PTZ_1 and HC_1 have (each) their own number of mapped centromeric reads as scaling factor.
+
+Data for replicate 23 are not shown in this report.
+
+```{r, results = 'asis', fig.width = 5, fig.height = 5}
+
+for (chip in c('chip_HC_1', 'chip_PTZ_1')) {
+    
+    cat('## ', chip, ' {.tabset .tabset-pills}\n\n')
+    
+    for (item_short in c('treatmenttreated_1h-treatmentcontrol',
+                   'treatmenttreated_6h-treatmenttreated_1h',
+                   'treatmenttreated_48h-treatmenttreated_6h')) {
+        cat('### ', item_short, ' {.tabset .tabset-pills} \n\n')
+        
+        item <- paste0(item_short, '__', chip)
+       
+
+        for (viewpoint in c('logCPM', 'logFC')) {
+            cat('#### ', viewpoint, ' {.tabset .tabset-pills}  \n\n')
+            c(grep(item, colnames(wide), value =  TRUE))
+              
+            curr <- wide[,c(grep(item, colnames(wide), value =  TRUE))]
+
+            colnames(curr) <- gsub(sprintf('edgeR_dge_results_%s.txt.', item), '',
+                                   colnames(curr))
+
+            k <- ceiling(max(abs(curr[, viewpoint]), na.rm = TRUE))
+
+            if (viewpoint == 'logCPM')
+                curr$bin <- cut(curr[, viewpoint], breaks = seq(-k, +k, by = 1))
+            if (viewpoint == 'logFC')
+                curr$bin <- cut(curr[, viewpoint], breaks = seq(-k, +k, by = 2))
+            ## curr$bin <- cut(curr[, viewpoint], breaks = 10)
+
+            cat('\n\n##### median\n\n')
+            print(ggplot(curr, aes(x = bin, y =  cenp_medianreads)) +
+                  geom_point(alpha = 0.1, size = 1) +
+                  ## geom_point() +
+                  geom_violin() +
+                  theme_bw() +
+                  scale_y_continuous(trans='log1p', breaks = c(0, 1, 5, 10, 100, 500, 2000, 5000, 10000)) +
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                  xlab(sprintf('expression %s in %s', viewpoint, item_short)) +
+                  stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="red")+
+                  stat_summary(fun= function(x) median(x) - mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue") +
+                  stat_summary(fun= function(x) median(x) + mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue")
+                  
+                  )
+
+            cat('\n\n##### sum\n\n')
+            print(ggplot(curr, aes(x = bin, y =  cenp_nreads)) +
+                  geom_point(alpha = 0.1, size = 1) +
+                  ## geom_point() +
+                  geom_violin() +
+                  theme_bw() +
+                  scale_y_continuous(trans='log1p', breaks = c(0, 1, 5, 10, 100, 500, 2000, 5000, 10000)) +
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                  xlab(sprintf('expression %s in %s', viewpoint, item_short)) +
+                  stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="red")+
+                  stat_summary(fun= function(x) median(x) - mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue") +
+                  stat_summary(fun= function(x) median(x) + mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue")
+                  
+                  )
+
+            cat('\n\n##### mean\n\n')
+            print(ggplot(curr, aes(x = bin, y =  cenp_meanreads)) +
+                  geom_point(alpha = 0.1, size = 1) +
+                  ## geom_point() +
+                  geom_violin() +
+                  theme_bw() +
+                  scale_y_continuous(trans='log1p', breaks = c(0, 1, 5, 10, 100, 500, 2000, 5000, 10000)) +
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                  xlab(sprintf('expression %s in %s', viewpoint, item_short)) +
+                  stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="red")+
+                  stat_summary(fun= function(x) mean(x) - sd(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue") +
+                  stat_summary(fun= function(x) mean(x) + sd(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue")
+                  
+                  )
+   
+
+            rm(curr)
+            cat('\n\n')
+            
+        }
+
+        cat('\n\n')
+    }
+    cat('\n\n')
+}
+```
+
+```{r, results = 'asis', fig.width = 5, fig.height = 5}
+
+wide$`treatmenttreated_1h-treatmenttreated_control.logFC` <- wide$`edgeR_dge_results_treatmenttreated_1h-treatmentcontrol__chip_HC_1.txt.logFC`
+
+wide$`treatmenttreated_1h-treatmenttreated_control.logCPM` <- wide$`edgeR_dge_results_treatmenttreated_1h-treatmentcontrol__chip_HC_1.txt.logCPM`
+
+wide$`treatmenttreated_6h-treatmenttreated_1h.logFC` <- wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_2_3.txt.logFC`
+wide$`treatmenttreated_6h-treatmenttreated_1h.logCPM` <- wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_2_3.txt.logCPM`
+
+wide$`treatmenttreated_48h-treatmenttreated_6h.logFC` <- wide$`edgeR_dge_results_treatmenttreated_48h-treatmenttreated_6h__chip_PTZ_2_3.txt.logFC`
+wide$`treatmenttreated_48h-treatmenttreated_6h.logCPM` <- wide$`edgeR_dge_results_treatmenttreated_48h-treatmenttreated_6h__chip_PTZ_2_3.txt.logCPM`
+
+
+## https://andrewpwheeler.com/2015/07/31/custom-square-root-scale-with-negative-values-in-ggplot2-r/
+library(scales)            
+## S_sqrt <- function(x){sign(x)*sqrt(abs(x))}
+## IS_sqrt <- function(x){x^2*sign(x)}
+## S_sqrt_trans <- function() trans_new("S_sqrt",S_sqrt,IS_sqrt)
+
+## https://stackoverflow.com/questions/20924705/plot-negative-values-in-logarithmic-scale-with-ggplot-2
+reverselog_trans <- function(base = exp(1)) {
+    trans <- function(x) -log(x, base)
+    inv <- function(x) base^(-x)
+    trans_new(paste0("reverselog-", format(base)), trans, inv, 
+              log_breaks(base = base), 
+              domain = c(1e-100, Inf))
+}
+
+for (delta in c("delta_cenp_reads_1", "delta_cenp_cpmc_1")) {
+    
+    cat('## ', delta, ' {.tabset .tabset-pills}\n\n')
+    
+    for (item_short in c('treatmenttreated_1h-treatmenttreated_control',
+                   'treatmenttreated_6h-treatmenttreated_1h',
+                   'treatmenttreated_48h-treatmenttreated_6h')) {
+        cat('### ', item_short, ' {.tabset .tabset-pills} \n\n')
+        
+
+        for (viewpoint in c('logCPM', 'logFC')) {
+            item <- paste0(item_short, '.', viewpoint)
+            
+            cat('#### ', viewpoint, ' {.tabset .tabset-pills}  \n\n')
+            ## c(grep(item, colnames(wide), value =  TRUE))
+              
+            curr <- wide[,c(grep(item, colnames(wide), value =  TRUE), delta)]
+
+
+            k <- ceiling(max(abs(curr[, item]), na.rm = TRUE))
+
+            if (viewpoint == 'logCPM')
+                curr$bin <- cut(curr[, item], breaks = seq(-k, +k, by = 1))
+            if (viewpoint == 'logFC')
+                curr$bin <- cut(curr[, item], breaks = seq(-k, +k, by = 2))
+            ## curr$bin <- cut(curr[, viewpoint], breaks = 10)
+
+            ## cat('\n\n##### median\n\n')
+            ## library(ggallin)
+            print(ggplot(curr, aes(x = bin, y =  get(delta))) +
+                  geom_point(alpha = 0.1, size = 1) +
+                  ## geom_point() +
+                  scale_y_continuous(trans=reverselog_trans(base=10),
+                                     labels=trans_format("identity", function(x) -x)) +
+                  geom_violin() +
+                  theme_bw() +
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                  xlab(sprintf('%s %s', viewpoint, item_short)) +
+                  ylab(delta) +
+                  stat_summary(fun=mean, geom="point", shape=18, size=3, color="red", fill="red")+
+                  stat_summary(fun= function(x) median(x) - mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue") +
+                  stat_summary(fun= function(x) median(x) + mad(x),
+                               geom="point", shape=18, size=3, color="darkblue", fill="darkblue")
+                  
+                  )
+
+
+            rm(curr)
+            cat('\n\n')
+            
+        }
+
+        cat('\n\n')
+    }
+    cat('\n\n')
+}
+```
+
+# Counts per million centromeric reads PTZ_1 vs HC_1
+
+In promoters, here
+
+
+```{r}
+tmp <- data.frame(cpcm = c(wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_PTZ_1.txt.cenp_nreads`/ ptz_1_centrom, wide$`edgeR_dge_results_treatmenttreated_6h-treatmenttreated_1h__chip_HC_1.txt.cenp_nreads`/ hc_1_centrom),
+                  status = c(rep('PTZ', nrow(wide)), rep('HC', nrow(wide))))
+print(ggplot(tmp, aes(x=status, y=cpcm, fill = status)) +
+      geom_violin() +
+      scale_y_log10() +
+      theme_bw())
+             
+```
+
+
+# ChiP-seq (public) data
+
+## GSE93011 (the one with K27me3) {.tabset .tabset-pills}
+
+
+```{r}
+## gses <- list.files(PUBLIC, include.dirs = TRUE, recursive = FALSE)
+PUBLIC <- '/home/imallona/cenp_chip/public/'
+
+gse <- 'GSE93011'
+
+poster <- list('GSE93011' = c('GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',
+                              ## 'GSM2442459_N-K4me3-1.bedGraph.gz',
+                              'GSM2442457_N-K27me3-1.bedGraph.gz'))
+
+beds <- list()
+
+for (fn in poster[[gse]]) {
+
+    tmp  <- readGeneric(file.path(PUBLIC, gse, fn),
+                        header = FALSE,
+                        skip = 1 ,
+                        keep.all.metadata = TRUE)
+
+    if (DOWNSAMPLE) {
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    }
+    else {
+        tmp <- keepSeqlevels(tmp, allowed_chr, pruning.mode="coarse")
+    }
+    
+    beds[[basename(fn)]] <-  ScoreMatrixBin(tmp,
+                                            windows = genes_asis,
+                                            type = "auto",
+                                            bin.num = 100,
+                                            strand.aware = TRUE,
+                                            weight.col = 'X' )
+}
+
+curr <- ScoreMatrixList(beds, bin.num = 100, cores = NTHREADS)
+rm(beds)
+
+## curr <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, curr),
+##                                 genes_asis, bin.num = 100,
+##                                 strand.aware = TRUE,
+##                                 cores = NTHREADS),
+##                                 reorder = TRUE)
+
+assign(gse, curr)
+
+```
+
+
+
+### Unscaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, curr),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+### Scaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, scaleScoreMatrixList(curr)),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                winsorize = c(1,99),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+
+
+
+```{r}
+assign(gse, curr)
+get(gse)
+
+```
+
+```{r}
+
+````
+
+
+
+
+
+## GSE125068 {.tabset .tabset-pills}
+
+The one with expression, CBP, K27ac, Pol2 etc (but not K4me3)
+
+This is mm10, but with unconsistent chr names
+
+```{bash, eval = FALSE}
+# [imallona@imlsportmacquarie GSE125068]$ ~/soft/kent/userApps.v390/bin/bigWigInfo  -chroms /home/imallona/cenp_chip/public/GSE125068/ChIP_CBP_KA1h.bw
+# version: 4
+# isCompressed: yes
+# isSwapped: 0
+# primaryDataSize: 336,628,214
+# primaryIndexSize: 1,979,880
+# zoomLevels: 10
+# chromCount: 21
+# 	1 0 195471971
+# 	10 1 130694993
+# 	11 2 122082543
+# 	12 3 120129022
+# 	13 4 120421639
+# 	14 5 124902244
+# 	15 6 104043685
+# 	16 7 98207768
+# 	17 8 94987271
+# 	18 9 90702639
+# 	19 10 61431566
+# 	2 11 182113224
+# 	3 12 160039680
+# 	4 13 156508116
+# 	5 14 151834684
+# 	6 15 149736546
+# 	7 16 145441459
+# 	8 17 129401213
+# 	9 18 124595110
+# 	X 19 171031299
+# 	Y 20 91744698
+# basesCovered: 955,789,739
+# mean: 0.468688
+# min: 0.122626
+# max: 165.23399
+
+
+# [imallona@imlsportmacquarie GSE125068]$ ~/soft/kent/userApps.v390/bin/bigWigInfo  -chroms ATAC_KA1h.bw 
+# version: 4
+# isCompressed: yes
+# isSwapped: 0
+# primaryDataSize: 449,681,394
+# primaryIndexSize: 1,189,632
+# zoomLevels: 8
+# chromCount: 22
+# 	chr1 0 195471971
+# 	chr10 1 130694993
+# 	chr11 2 122082543
+# 	chr12 3 120129022
+# 	chr13 4 120421639
+# 	chr14 5 124902244
+# 	chr15 6 104043685
+# 	chr16 7 98207768
+# 	chr17 8 94987271
+# 	chr18 9 90702639
+# 	chr19 10 61431566
+# 	chr2 11 182113224
+# 	chr3 12 160039680
+# 	chr4 13 156508116
+# 	chr5 14 151834684
+# 	chr6 15 149736546
+# 	chr7 16 145441459
+# 	chr8 17 129401213
+# 	chr9 18 124595110
+# 	chrM 19 16299
+# 	chrX 20 171031299
+# 	chrY 21 91744698
+# basesCovered: 2,725,537,669
+# mean: 1.263262
+# min: 0.000000
+# max: 782.190002
+# std: 4.266521
+```
+
+```{r}
+genes_asis_ncbi <- genes_asis
+seqlevelsStyle(genes_asis_ncbi) <- "NCBI"
+
+genes_asis_ncbi <- genes_asis
+seqlevelsStyle(genes_asis_ncbi) <- "NCBI"
+
+```
+
+
+```{r}
+gse <- 'GSE125068'
+
+fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*bw$'))
+
+fns <- grep('riboRNA', fns, value = TRUE, invert = TRUE)
+
+
+bws <- list()
+
+for (fn in fns) {
+    bws[[basename(fn)]] <- tryCatch({
+        ScoreMatrixBin(fn, windows = genes_asis,
+                    type = "auto",
+                    bin.num = 100,
+                    strand.aware = TRUE)
+    }, error = function(x) {
+        tryCatch({
+            tmp <- readBigWig(fn, windows = genes_asis_ncbi,
+                              type = "auto",  strand.aware = TRUE)
+            
+            seqlevelsStyle(tmp) <- "UCSC"
+            bws[[basename(fn)]] <- ScoreMatrixBin(tmp,
+                                                  genes_asis, #genes_asis_ncbi,
+                                                  bin.num = 100,
+                                                  type = "auto",  strand.aware = TRUE)
+
+            rm(tmp)
+        }, error = function(x) {
+
+            tmp <- readBigWig(fn, windows = genes_asis_ncbi,
+                              type = "auto",  strand.aware = TRUE)
+            
+            seqlevelsStyle(tmp) <- "UCSC"
+            bws[[basename(fn)]] <- ScoreMatrixBin(tmp,
+                                                  genes_asis_ncbi,
+                                                  bin.num = 100,
+                                                  type = "auto",  strand.aware = TRUE)
+            
+        })
+    })    
+}
+
+
+bws <- ScoreMatrixList(bws,  genes_asis, bin.num = 100, strand.aware = TRUE, cores = NTHREADS)
+names(bws) <- gsub('.bw', '', names(bws))
+
+assign(gse, bws)
+```
+
+### Unscaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, bws),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+### Scaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, scaleScoreMatrixList(bws)),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                winsorize = c(1,99),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+
+
+```{r}
+assign(gse, bws)
+get(gse)
+
+```
+
+
+
+## GSE85873 {.tabset .tabset-pills}
+
+This is the one with H3K4me3 and H3K4me1
+
+The public data were peaks, not signal/bws. mm10, ncbi-style chrom names. We've re-aligned them.
+
+<!-- ```{r old_peaks, eval = FALSE} -->
+<!-- gse <- 'GSE85873' -->
+
+
+<!-- fns <- file.path(PUBLIC, gse, list.files(file.path(PUBLIC, gse), pattern = '.*gz$')) -->
+
+<!-- ## fns <- grep('H3K4me', fns, value = TRUE) -->
+
+<!-- peaks <- lapply(fns, function(x) readGeneric(x, header = TRUE, meta.col = list(score = 4))) -->
+<!-- names(peaks) <- basename(fns) -->
+<!-- names(peaks) <- gsub('.txt.gz', '', names(peaks)) -->
+
+<!-- if (DOWNSAMPLE){ -->
+<!--     for (item in names(peaks)) { -->
+<!--         seqlevelsStyle(peaks[[item]]) <- 'UCSC' -->
+
+<!--         peaks[[item]] <- keepSeqlevels(peaks[[item]], "chr19", pruning.mode="coarse") -->
+<!--     } -->
+<!-- } else { -->
+<!--         for (item in names(peaks)) { -->
+<!--         seqlevelsStyle(peaks[[item]]) <- 'UCSC' -->
+
+<!--         peaks[[item]] <- keepSeqlevels(peaks[[item]], allowed_chr, pruning.mode="coarse") -->
+<!--     } -->
+<!-- } -->
+
+<!-- names(peaks) <- c('K4me3_wt_HC_1', 'K4me3_wt_NE_1', 'K4me3_wt_HC_2', 'K4me3_wt_NE_2', -->
+<!--                   'K4me1_WT') -->
+
+<!-- ## names(peaks) <- c('K4me1_WT') -->
+<!-- peaks <- ScoreMatrixList(peaks, -->
+<!--                          genes_asis, -->
+<!--                          bin.num = 100, -->
+<!--                          weight.col = 'score', -->
+<!--                          is.noCovNA = TRUE, -->
+<!--                          type = "auto",  strand.aware = TRUE) -->
+
+<!-- assign(gse, peaks) -->
+<!-- ``` -->
+
+
+
+```{r bws_k4me3, eval = TRUE}
+gse <- 'GSE85873'
+
+reproc <- '/home/imallona/cenp_chip/public/k4me3/bamCoverage'
+fns <- file.path(reproc, list.files(file.path(reproc), pattern = '.*bw$'))
+
+fns <- grep('filtered', fns, value = TRUE, invert = TRUE)
+
+## fns <- grep('H3K4me', fns, value = TRUE)
+
+
+bws <- list()
+
+for (fn in fns) {
+    print(fn)
+    bws[[basename(fn)]] <- tryCatch({
+        ScoreMatrixBin(fn, windows = genes_asis,
+                    type = "auto",
+                    bin.num = 100,
+                    strand.aware = TRUE)
+    })
+}
+
+
+
+names(bws) <- gsub('.seq_depth_norm.bw', '', names(bws))
+
+names(bws) <- gsub('novel_environment', 'ne', names(bws))
+names(bws) <- gsub('k4me3', 'K4me3', names(bws))
+
+assign(gse, bws)
+```
+
+
+
+### Heat
+
+```{r}
+
+peaks <- bws ## old comp
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, GSE125068, peaks),
+                                                genes_asis,
+                                                bin.num = 100,
+                                                strand.aware = TRUE,
+                                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+
+```
+
+
+```{r, fig.width = 22, fig.height = 6}
+set.seed(1)
+
+multiHeatMatrix(tmp,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.8,
+                winsorize = c(1,99))
+
+```
+
+### Meta
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    ## head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES'))
+
+
+```
+
+
+
+## CENPA in non-neurons (liver) {.tabset .tabset-pills}
+
+Is CENPA binding to these promoters something neuron-specific?
+
+```{r}
+
+gse <- 'lung_liver_cenp'
+
+fns <- file.path(PUBLIC, gse, 'out', 'bamCoverage',
+                  list.files(file.path(PUBLIC, gse, 'out', 'bamCoverage'), pattern = '.*bw$'))
+
+fns <- grep('filtered', fns, invert = TRUE, value = TRUE)
+
+fns <- grep('SRR5723794', fns, value = TRUE)
+## ?ScoreMatrixList
+
+## the genes_asis is already downsampled
+
+bws <- list()
+
+for (fn in fns) {
+    bws[[basename(fn)]] <- tryCatch({
+        ScoreMatrixBin(fn, windows = genes_asis,
+                    type = "auto",
+                    bin.num = 100,
+                    strand.aware = TRUE)
+    }, error = function(x) {
+        tmp <- readBigWig(fn, windows = genes_asis_ncbi,
+                          type = "auto",  strand.aware = TRUE)
+        
+        seqlevelsStyle(tmp) <- "UCSC"
+        bws[[basename(fn)]] <- ScoreMatrixBin(tmp, genes_asis_ncbi,
+                                              bin.num = 100,
+                                              type = "auto",  strand.aware = TRUE)
+
+        rm(tmp)
+    })    
+}
+
+
+bws <- ScoreMatrixList(bws, bin.num = 100)
+names(bws) <- gsub('.seq_depth_norm.bw', '', names(bws))
+names(bws) <- paste0('cenp_liver_', names(bws))
+
+assign(gse, bws)
+```
+
+
+```{r}
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, GSE125068, peaks, bws),
+                                                genes_asis,
+                                                bin.num = 100,
+                                                strand.aware = TRUE,
+                                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+```
+
+
+```{r, fig.width = 26, fig.height = 6}
+set.seed(1)
+
+multiHeatMatrix(tmp,
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.8,
+                winsorize = c(1,99))
+
+```
+
+### Meta
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+
+```{r}
+assign(gse, bws)
+
+```
+
+
+## GSE21161 (CREB/SRF) {.tabset .tabset-pills}
+
+
+Caution this is mm9, liftover. Bigwigs. Chroms UCSC-style.
+
+We won't use those.
+
+```{r}
+
+gse <- 'GSE21161'
+
+fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'), 
+                 list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*bw$'))
+
+## bws <- ScoreMatrixList(fns, genes_asis,
+##                        type = "auto",  strand.aware = TRUE,
+##                        bin.num = 100)
+
+curr <- list()
+for (fn in fns) {
+
+    tmp <- rtracklayer::import(fn, as = 'GRanges')
+    tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']]))
+
+    if (DOWNSAMPLE){
+        seqlevelsStyle(tmp) <- 'UCSC'
+
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    }
+
+
+    curr[[fn]] <- ScoreMatrixBin(tmp,
+                              bin.num = 100,
+                              genes_asis,
+                              type = "auto",  strand.aware = TRUE) 
+
+    rm(tmp)        
+}
+
+
+names(curr) <- c("CREB_SC_un_B1",
+                 "CREB_SC_KCl_B1",
+                 "CREB_SC_un_B2",
+                 "CREB_SC_KCl_B2", 
+                 "SRF_H300_un_B1",
+                 "SRF_H300_KCl_B1",
+                 "SRF_H300_un_B2",
+                 "SRF_H300_KCl_B2")
+
+names(curr)
+
+
+curr <- ScoreMatrixList(curr, bin.num = 100, cores = NTHREADS)
+
+```
+
+
+### Unscaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, curr),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+### Scaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, scaleScoreMatrixList(curr)),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                winsorize = c(1,99),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+
+
+
+```{r}
+assign(gse, curr)
+get(gse)
+
+```
+
+## H3.3 {.tabset .tabset-pills}
+
+
+mm9 data h3.3 - mm9 bamfiles named `rmdup` only to avoid read dup biases
+
+There are so many that I'm taking four files at random. To discuss which are best.
+
+```{r}
+gse <- 'GSE69806'
+```
+
+
+```{r renamecovs}
+
+meta <- read.csv(file.path(PUBLIC, 'GSE69806_caution_mm9_rmdup', 'sra_metadata_h33.txt'))
+
+```
+
+```{r}
+covs_fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9_rmdup'),
+    list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9_rmdup')), pattern = '.*bga.bedgraph.gz$'))
+
+## just randomly downsample four of them
+set.seed(646)
+covs_fns <- covs_fns[sample(1:length(covs_fns), 4, replace = FALSE)]
+
+covs <- list()
+for (fn in covs_fns) {
+    ## if (DOWNSAMPLE) {
+    ##     tmp <- readGeneric(pipe(sprintf('zcat %s | fgrep chr19', fn)),
+    ##                        header = FALSE, meta.col = list(cov = 4))
+    ## } else{
+    ##     tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4))
+    ## }
+
+    tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4))
+    if (DOWNSAMPLE) {        
+        tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse")
+    }
+    
+    tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']]))
+    covs[[fn]] <- tmp
+    rm(tmp)
+}
+
+names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(covs_fns))
+
+
+if (DOWNSAMPLE) {
+    for (item in names(covs)) {
+        covs[[item]] <- keepSeqlevels(covs[[item]], "chr19", pruning.mode="coarse")
+    }
+}
+
+names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(names(covs)))
+meta <- meta[meta$Run %in% names(covs),]
+rownames(meta) <- meta$Run
+names(covs) <- sprintf('H3.3 `%s` %s\n%s\n%s',  meta[names(covs), 'chip_antibody'],
+                       names(covs), meta[names(covs), 'Treatment'],
+                       meta[names(covs), 'tissue.cell_type'])
+
+```
+
+
+```{r}
+assign(gse, covs)
+```
+
+
+```{r}
+covs <- lapply(covs, function(x) ScoreMatrixBin(x, genes_asis,
+                                                is.noCovNA = TRUE,
+                                                bin.num = 100,
+                                                type = "auto",  strand.aware = TRUE))
+
+
+
+covs <- ScoreMatrixList(covs, bin.num = 100, cores = NTHREADS, strand.aware = TRUE)
+
+```
+
+
+
+### Unscaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, covs),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+### Scaled {.tabset .tabset-pills}
+
+#### Heat
+
+
+```{r, fig.width = 14, fig.height = 6}
+
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, scaleScoreMatrixList(covs)),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                winsorize = c(1,99),
+                order = TRUE,
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+#### Meta
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+test %>% group_by(sample, cluster, pos) %>% 
+    summarise(mean_value = mean(value),
+              median_value = median(value)) %>%
+    ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+    geom_point() +
+    geom_smooth(span = .2) +
+    facet_wrap(~cluster) +
+    theme_bw() +
+    scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+
+
+
+
+
+
+
+# All together, facetted
+
+Filter here requested datasets, only? or, rather, do that first?
+
+```{r, fig.height = 6, fig.width = 25}
+
+
+peaks <- ScoreMatrixList(peaks)
+
+tmp <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_with_cpg, GSE125068, peaks,
+                                                  GSE93011,
+                                                  lung_liver_cenp, GSE21161, GSE69806),
+                                genes_asis, bin.num = 100,
+                                strand.aware = TRUE,
+                                cores = NTHREADS),
+                                reorder = TRUE)
+
+tmp_idx <- dimnames(tmp@.Data[[1]])[[1]]
+
+multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
+                xcoords = c(minx, maxx),
+                group = as.factor(clu[tmp_idx]),
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+
+
+
+```
+
+can we resort clusters?
+
+```{r, fig.height = 6, fig.width = 25}
+
+sorting <- as.factor(clu[tmp_idx])
+
+foo <- sort(factor(sorting, levels = 1:NUM_CLUSTERS))
+
+multiHeatMatrix(harmonize_sml(tmp, foo),
+                xcoords = c(minx, maxx),
+                group = foo,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+```
+
+
+```{r, fig.width = 10, fig.height = 6}
+set.seed(1)
+test <- lapply(tmp, function(x) return(val2unit(x@.Data)))
+
+for (item in names(test)) {
+    fd <- as.data.frame(test[[item]])
+    fd$window <- 1:nrow(fd)
+    fd$cluster <- paste0('cluster ', clu[tmp_idx])
+    fd$sample <- item
+    ## colnames(fd) <- paste0('pos', colnames(fd))
+    head(fd)
+    fd <- as.data.frame(fd) %>% 
+        pivot_longer(
+            cols = -c(window, cluster, sample),
+            names_to = "pos",
+            values_to = "value")
+
+    test[[item]] <- fd
+}
+
+
+test <- do.call(rbind.data.frame, test)
+
+test$pos <- as.numeric(gsub('V', '', test$pos))
+
+## test %>% group_by(sample, cluster, pos) %>% 
+##     summarise(mean_value = mean(value),
+##               median_value = median(value)) %>%
+##     ggplot(aes(x = pos, y = mean_value, colour = sample)) +
+##     geom_point() +
+##     geom_smooth(span = .2) +
+##     facet_wrap(~cluster) +
+##     theme_bw() +
+##     scale_x_continuous(breaks = c(100*0.1, 100*0.9), labels = c('TSS', 'TES')) + theme(aspect.ratio=1)
+
+
+```
+
+
+```{r, cache = FALSE}
+saveRDS(test, file = 'test_genes_another.rds')
+
+## test <- readRDS('test_another.rds')
+## unique(test$sample)
+
+## stop('here')
+
+```
+
+
+
+```{r}
+test$category <- 'else'
+test$category[grepl('ChIP_H3K27ac_Sal', test$sample)] <- 'eg_K27ac'
+test$category[grepl('cenp', test$sample)] <- 'eg_CENP'
+test$category[grepl('ATAC', test$sample)] <- 'eg_ATAC'
+test$category[grepl('K4me3', test$sample)] <- 'eg_K4me3'
+test$category[grepl('K4me1', test$sample)] <- 'eg_K4me1'
+test$category[grepl('K27me3', test$sample)] <- 'eg_K27me3'
+
+
+test$category[grepl('Pol2', test$sample)] <- 'ex_Pol2'
+test$category[grepl('PolII', test$sample)] <- 'ex_Pol2'
+
+test$category[grepl('nuRNA', test$sample)] <- 'ex_nuRNA'
+test$category[grepl('riboRNA', test$sample)] <- 'ex_riboRNA'
+test$category[grepl('cenp_liver', test$sample)] <- 'eg_CENP_liver'
+test$category[grepl('CREB', test$sample)] <- 'eg_CREB'
+test$category[grepl('CBP', test$sample)] <- 'eg_CBP'
+test$category[grepl('SRF', test$sample)] <- 'eg_SRF'
+test$category[grepl('NeuN', test$sample)] <- 'eg_H3.3'
+test$category[grepl('H3.3', test$sample)] <- 'eg_H3.3'
+test$category[grepl('SRR2061076', test$sample)] <- 'eg_H3.3'
+test$category[grepl('CpGi', test$sample)] <- 'eg_CpGi'
+
+## test <- test[test$category != 'ex_riboRNA',]
+## unique(test[test$category == 'else', 'sample'])
+
+## test$panel <- ifelse(grepl('^eg_', test$category), yes = 'chromatin', no = 'RNA')
+
+test$panel[grepl('K4', test$category)] <- 'active'
+test$panel[grepl('Pol2', test$category)] <- 'RNA'
+test$panel[grepl('ATAC', test$category)] <- 'active'
+test$panel[grepl('K27ac', test$category)] <- 'active'
+test$panel[grepl('K27me3', test$category)] <- 'inactive'
+
+test$panel[grepl('H3.3', test$category)] <- 'H3.3'
+
+test$panel[grepl('RNA', test$category)] <- 'RNA'
+
+
+test$panel[grepl('CENP', test$category)] <- 'CENP'
+
+test$panel[grepl('CBP', test$category)] <- 'CBP'
+test$panel[grepl('SRF', test$category)] <- 'SRF/CREB'
+test$panel[grepl('CREB', test$category)] <- 'SRF/CREB'
+
+test$panel[grepl('CpGi', test$category)] <- 'CpGi'
+
+test$category <- gsub('eg_', '', gsub('ex_', '', test$category))
+
+table(test$category, test$panel, useNA = 'always')
+## head(test[test$category == 'else',])
+```
+
+```{r}
+
+## selected <- c('CENP', 'ATAC', 'K4me3', 'K27ac', 'Pol2', 'CBP', 'K27me3')
+## selected_metaplot <- c('CENP', 'K27ac', 'K4me3', 'Pol2', 'CBP', 'nuRNA')
+## selected_heatmap <- c('CENP', 'K27ac', 'K27me3')
+
+selected_metaplot <- c('CENP',   'K4me3', 'Pol2', 'CBP', 'nuRNA', 'ATAC')
+selected_heatmap <- c('CENP', 'K27ac', 'K27me3')
+
+
+selected <- selected_metaplot
+
+## selected_heatmap_samples <-  names(tmp) %in% unique(test[test$category %in% selected_heatmap, 'sample'])
+
+## tmp_selected <- tmp[selected_heatmap_samples]
+
+selected_heatmap_samples <- as.data.frame(unique(test[test$category %in% selected_heatmap, 'sample']))$sample
+                                        
+tmp_selected <- tmp[names(tmp) %in% selected_heatmap_samples]
+
+test <- test[test$category %in% selected_metaplot,]
+
+test$category <- factor(test$category, levels = selected_metaplot)
+```
+
+```{r}
+test <- test[!test$sample %in% 'GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',]
+
+## for metaplotting the 'PTZ' is removed
+## test <- test[!test$sample %in% 'cenp_PTZ_1',]
+```
+
+
+```{r}
+test$value[is.na(test$value)] <- 0
+```
+
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
+
+<!-- set.seed(134) -->
+<!-- test[sample(1:nrow(test), size = 2e5),] %>%  -->
+<!--     ggplot(aes(x = pos, y = value, color = cluster, group.by = sample)) + -->
+<!--     geom_smooth(method = "loess", se = FALSE) + -->
+<!--     facet_grid(category~cluster, scales = "free") + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized genebody position', -->
+<!--                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+
+<!-- ``` -->
+
+
+
+
+```{r, fig.width = 16, fig.height = 6}
+
+names(tmp_selected) <- gsub('GSM2442457_N-K27me3-1.bedGraph.gz', 'ChIP_K27me3',
+                            names(tmp_selected))
+
+sorting <- as.factor(clu[tmp_idx])
+
+foo <- sort(factor(sorting, levels = 1:NUM_CLUSTERS))
+
+                        
+multiHeatMatrix(harmonize_sml(tmp_selected, foo),
+                xcoords = c(minx, maxx),
+                group = foo,
+                order = TRUE,
+                winsorize = c(1,99),
+                col = viridis(9),
+                cex.main = 0.7)
+
+```
+
+Requested order/requested panels
+
+
+
+```{r}
+test$status <- 'else'
+test$status[grepl('KA', test$sample)] <- 'activated'
+test$status[grepl('PTZ', test$sample)] <- 'activated'
+test$status[grepl('ne', test$sample)] <- 'activated'
+test$status[grepl('ctrl', test$sample)] <- 'control'
+
+test$status[grepl('wt', test$sample)] <- 'control'
+test$status[grepl('Sal', test$sample)] <- 'control'
+test$status[grepl('HC', test$sample)] <- 'control'
+test$status[grepl('WT', test$sample)] <- 'control'
+test$status[grepl('liver', test$sample)] <- 'control'
+test$status[grepl('un', test$sample)] <- 'control'
+test$status[grepl('KCl', test$sample)] <- 'control'
+test$status[grepl('no stimulation', test$sample)] <- 'control'
+test$status[grepl('Normally', test$sample)] <- 'control'
+test$status[test$sample %in% c('GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',
+                               'GSM2442457_N-K27me3-1.bedGraph.gz')] <- 'control'
+
+test$status[grepl('wt_NE', test$sample)] <- 'activated'
+
+unique(test[test$status == 'else', 'sample'])
+table(test$sample, test$status)
+```
+
+Sampling, loess smoothing
+
+```{r, fig.width = 10, fig.height =7}
+set.seed(134)
+test[sample(1:nrow(test), size = 2e5),] %>% 
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
+    geom_smooth(method = "loess", se = FALSE, span = 0.15) +
+    facet_grid(category~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+Medians
+
+```{r, fig.width = 10, fig.height = 7}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = median)) %>% 
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
+    geom_line(lwd = 1) +
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
+
+Means
+
+```{r, fig.width = 10, fig.height = 7}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = mean)) %>% 
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
+    geom_line(lwd = 1) +
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
+
+Winsorized, medians
+
+
+```{r}
+winsorize<-function(mat, rang){
+  hi.th <- quantile(mat, rang[2]/100,na.rm = TRUE)
+  lo.th <- quantile(mat, rang[1]/100,na.rm = TRUE)
+  mat[mat>hi.th] = hi.th
+  mat[mat<lo.th] = lo.th
+  return(mat)
+}
+
+```
+
+```{r, fig.width = 10, fig.height = 7}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = function(x) median(winsorize(x, rang = c(1, 99))))) %>% 
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
+    geom_line(lwd = 1) +
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+
+```
+
+Winsorized, means
+
+```{r, fig.width = 10, fig.height = 7}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = function(x) mean(winsorize(x, rang = c(1, 99))))) %>% 
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
+    geom_line(lwd = 1) +
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+
+```
+
+
+<!-- Even more winsorized, medians -->
+
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
+<!-- set.seed(134) -->
+
+
+<!-- test %>% -->
+<!--     group_by(cluster, sample, pos, status, category) %>% -->
+<!--     summarise_at(vars(value), -->
+<!--                list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>%  -->
+<!--     ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) + -->
+<!--     geom_line(lwd = 1) + -->
+<!--     facet_grid(factor(category, levels = selected)~cluster, scales = "free") + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized genebody position', -->
+<!--                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+
+<!-- ``` -->
+
+<!-- Even more winsorized, smooth -->
+
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
+<!-- set.seed(134) -->
+
+
+<!-- test %>% -->
+<!--     group_by(cluster, sample, pos, status, category) %>% -->
+<!--     summarise_at(vars(value), -->
+<!--                list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>%  -->
+<!--     ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) + -->
+
+<!--     geom_smooth(method = "loess", se = TRUE, span = 0.05) +  -->
+<!--     facet_grid(factor(category, levels = selected)~cluster, scales = "free") + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized genebody position', -->
+<!--                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+
+<!-- ``` -->
+
+
+```{r}
+sessionInfo()
+```
+
+```{r, cache = FALSE}
+knitr::knit_exit()
+```
+
+
+Beware downsampled probably needed
+
+```{r, fig.width = 10, fig.height = 10}
+
+set.seed(134)
+
+ggplot(as.data.frame(test %>% group_by(cluster)),
+       aes(x = pos, y = value, color = status, group.by = sample)) +
+    geom_smooth(method = "loess", se = FALSE) +
+    facet_grid(panel~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
+
+
+```{r}
+knitr::knit_exit()
+
+
+```
+
+```{r}
+knitr::knit_exit()
+
+```
+
+```{r}
+stop()
+```
+
+<!-- # Plotting as stratified/facetted metaplots -->
+
+<!-- ```{r meanswider, eval = FALSE, message = FALSE} -->
+
+<!-- ## mat.list = lapply(foo, function(x) x@.Data) -->
+<!-- mat.list = lapply(c(sml_genes_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161), function(x) x@.Data) -->
+
+<!-- ## stopifnot(all(sapply(mat.list, nrow) == max(sapply(mat.list, nrow)))) -->
+
+<!-- group.vector = NULL -->
+
+<!-- clust.matrix = 1:4 -->
+<!-- mat2 = do.call("cbind", mat.list[clust.matrix]) -->
+<!-- clustfun = function(x) kmeans(x, centers = 2)$cluster -->
+
+<!-- set.seed(1) -->
+<!-- clu = clustfun(mat2) -->
+
+<!-- group.vector = clu -->
+<!-- ## str(mat.list) -->
+<!-- ## mat.list = lapply(mat.list, function(x) split(x = x, f = group.vector)) -->
+
+<!-- ## head(mat.list[[1]]) -->
+<!-- ## head(clu) -->
+
+<!-- longer <- list() -->
+
+<!-- for (samp in names(mat.list)) { -->
+<!--     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name) -->
+<!--     longer[[samp]] <- list() -->
+<!--     for (cl in unique(group.vector)) { -->
+<!--         ## cat(samp, ' ' , cl, '\n\n') -->
+<!--         tryCatch({ -->
+<!--         idx <- group.vector == cl -->
+<!--         tmp <- colMeans(as.data.frame(mat.list[[samp]][idx,])) -->
+
+<!--         tmp <- data.frame(value = tmp, -->
+<!--                           pos = names(tmp), -->
+<!--                           cluster = cl, -->
+<!--                           sample = samp) -->
+<!--         longer[[samp]][[as.character(cl)]] <- tmp -->
+<!--         }, error = function(x) print(x)) -->
+
+
+<!--     } -->
+<!--      longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]]) -->
+<!-- } -->
+
+<!-- longer <- do.call(rbind.data.frame, longer) -->
+
+<!-- longer$pos <- as.numeric(gsub('V', '', longer$pos)) -->
+
+<!-- longer$value[is.na(longer$value)] <- 0 -->
+<!-- rm(mat.list) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- longer$category <- 'else' -->
+<!-- longer$category[grepl('cenp', longer$sample)] <- 'CENP' -->
+<!-- longer$category[grepl('ATAC', longer$sample)] <- 'ATAC' -->
+<!-- longer$category[grepl('K4me3', longer$sample)] <- 'K4me3' -->
+<!-- longer$category[grepl('Pol2', longer$sample)] <- 'Pol2' -->
+
+
+<!-- ``` -->
+
+<!-- <\!-- ```{r, fig.width = 8, fig.height = 8} -\-> -->
+<!-- <\!-- ggplot(data = longer, aes(x = pos, y = value, color = sample)) + -\-> -->
+<!-- <\!--     geom_smooth(method = "loess") + -\-> -->
+<!-- <\!--     facet_wrap(~ cluster) -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- What about min-max scaling? -\-> -->
+
+<!-- <\!-- ```{r, fig.width = 8, fig.height = 8} -\-> -->
+
+
+
+<!-- <\!-- val2unit <- function(x) { -\-> -->
+<!-- <\!--     (x - min(x, na.rm = TRUE))/(max(x, na.rm = TRUE) -  -\-> -->
+<!-- <\!--                                 min(x, na.rm = TRUE)) -\-> -->
+<!-- <\!-- } -\-> -->
+
+<!-- <\!-- test <- longer %>% -\-> -->
+<!-- <\!--     group_by(sample) %>%  -\-> -->
+<!-- <\!--     summarise(value = val2unit(value), -\-> -->
+<!-- <\!--               pos = pos, -\-> -->
+<!-- <\!--               cluster = cluster, -\-> -->
+<!-- <\!--               category = category) -\-> -->
+
+
+<!-- <\!-- ggplot(data = test, aes(x = pos, y = value, color = sample)) + -\-> -->
+<!-- <\!--     geom_smooth(method = "loess") + -\-> -->
+<!-- <\!--     facet_grid(cluster ~ category) -\-> -->
+
+<!-- <\!-- ggplot(data = test, aes(x = pos, y = value, color = sample)) + -\-> -->
+<!-- <\!--     geom_smooth(method = function(x) stats::loess(x, span = .5)) + -\-> -->
+<!-- <\!--     facet_grid(cluster ~ category) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+
+<!-- <\!-- ```{r, fig.width = 10, fig.height = 8, eval = TRUE} -\-> -->
+
+<!-- <\!-- ## only some dots here - check -\-> -->
+
+<!-- <\!-- ggplot(data = longer, aes(x = pos, y = value, color = sample)) + -\-> -->
+<!-- <\!--     geom_smooth(method = "loess") + -\-> -->
+<!-- <\!--     facet_grid(cluster ~ category) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+
+<!-- <\!-- ```{r, fig.width = 10, fig.height = 8, eval = TRUE} -\-> -->
+
+<!-- <\!-- ## only some dots here - check -\-> -->
+
+<!-- <\!-- ggplot(data = longer, aes(x = pos, y = value, color = sample)) + -\-> -->
+<!-- <\!--     geom_smooth(method = "loess") + -\-> -->
+<!-- <\!--     facet_grid(cluster ~ category) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+
+<!-- <\!-- ```{r, fig.width = 10, fig.height = 8, eval = TRUE} -\-> -->
+
+<!-- <\!-- ## only some dots here - check -\-> -->
+
+<!-- <\!-- ggplot(data = longer, aes(x = pos, y = value, color = cluster)) + -\-> -->
+<!-- <\!--     geom_smooth(method = "loess") + -\-> -->
+<!-- <\!--     facet_wrap(~ sample) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- ```{r, fig.width = 10, fig.height = 8, eval = TRUE} -\-> -->
+
+<!-- <\!-- ## only some dots here - check -\-> -->
+<!-- <\!-- test$cluster <- as.factor(test$cluster) -\-> -->
+<!-- <\!-- ggplot(data = test, aes(x = pos, y = value, color = cluster)) + -\-> -->
+<!-- <\!--     geom_smooth(method = "loess") + -\-> -->
+<!-- <\!--     facet_wrap(~ sample) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+
+<!-- <\!-- ```{r, fig.width = 8, fig.height = 8} -\-> -->
+<!-- <\!-- ggplot(data = longer, aes(x = pos, y = value, color = sample)) + -\-> -->
+<!-- <\!--     geom_smooth(method = "loess") + -\-> -->
+<!-- <\!--     facet_grid(category~cluster) -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+
+
+<!-- What about meta.rescaling genomation-style? -->
+
+
+<!-- ```{r} -->
+<!-- val2unit <- function(x){(x-min(x, na.rm = TRUE))/(max(x, na.rm = TRUE)-min(x, na.rm = TRUE))}  -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- mat.list = lapply(c(sml_genes_with_cpg, GSE125068, peaks), function(x) x@.Data) -->
+
+<!-- names(mat.list) <- names(c(sml_genes_with_cpg, GSE125068, peaks)) -->
+<!-- longer <- list() -->
+<!-- for (samp in names(mat.list)) { -->
+<!--     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name) -->
+<!--     longer[[samp]] <- list() -->
+<!--     for (cl in unique(group.vector)) { -->
+<!--         ## cat(samp, ' ' , cl, '\n\n') -->
+<!--         tryCatch({ -->
+<!--         idx <- group.vector == cl -->
+<!--         tmp <- colMeans(as.data.frame(val2unit(mat.list[[samp]][idx,]))) -->
+
+<!--         tmp <- data.frame(value = tmp, -->
+<!--                           pos = names(tmp), -->
+<!--                           cluster = cl, -->
+<!--                           sample = samp) -->
+<!--         longer[[samp]][[as.character(cl)]] <- tmp -->
+<!--         }, error = function(x) print(x)) -->
+
+
+<!--     } -->
+<!--      longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]]) -->
+<!-- } -->
+
+<!-- longer <- do.call(rbind.data.frame, longer) -->
+
+<!-- longer$pos <- as.numeric(gsub('V', '', longer$pos)) -->
+
+<!-- longer$value[is.na(longer$value)] <- 0 -->
+<!-- rm(mat.list) -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- longer$category <- 'else' -->
+<!-- longer$category[grepl('cenp', longer$sample)] <- 'CENP' -->
+<!-- longer$category[grepl('ATAC', longer$sample)] <- 'ATAC' -->
+<!-- longer$category[grepl('K4me3', longer$sample)] <- 'K4me3' -->
+<!-- longer$category[grepl('Pol2', longer$sample)] <- 'Pol2' -->
+<!-- longer$category[grepl('nuRNA', longer$sample)] <- 'nuRNA' -->
+<!-- longer$category[grepl('riboRNA', longer$sample)] <- 'riboRNA' -->
+<!-- longer$category[grepl('liver', longer$sample)] <- 'lung_liver_cenp' -->
+
+
+<!-- ``` -->
+
+<!-- ```{r, fig.width = 8, fig.height = 8} -->
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = sample)) + -->
+<!--     geom_smooth(method = "loess") + -->
+<!--     facet_grid(category~cluster) + -->
+<!--     theme_bw() -->
+<!-- ``` -->
+
+
+
+
+<!-- ## GSE69806 (H3.3) -->
+
+<!-- mm9 data h3.3 - mm9 bamfiles named `rmdup` only to avoid read dup biases -->
+
+<!-- There are so many that I'm taking four files at random. To discuss which are best. -->
+
+<!-- ```{r} -->
+<!-- gse <- 'GSE69806' -->
+<!-- ``` -->
+
+
+<!-- ```{r covs_h3} -->
+
+<!-- meta <- read.csv(file.path(PUBLIC, 'GSE69806_caution_mm9_rmdup', 'sra_metadata_h33.txt')) -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- covs_fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9_rmdup'), -->
+<!--     list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9_rmdup')), pattern = '.*bga.bedgraph.gz$')) -->
+
+<!-- ## just randomly downsample four of them -->
+<!-- set.seed(646) -->
+<!-- covs_fns <- covs_fns[sample(1:length(covs_fns), 4, replace = FALSE)] -->
+
+<!-- covs <- list() -->
+<!-- for (fn in covs_fns) { -->
+<!--     ## if (DOWNSAMPLE) { -->
+<!--     ##     tmp <- readGeneric(pipe(sprintf('zcat %s | fgrep chr19', fn)), -->
+<!--     ##                        header = FALSE, meta.col = list(cov = 4)) -->
+<!--     ## } else{ -->
+<!--     ##     tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4)) -->
+<!--     ## } -->
+
+<!--     tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4)) -->
+<!--     if (DOWNSAMPLE) {         -->
+<!--         tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse") -->
+<!--     } -->
+    
+<!--     tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']])) -->
+<!--     covs[[fn]] <- tmp -->
+<!--     rm(tmp) -->
+<!-- } -->
+
+<!-- names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(covs_fns)) -->
+
+
+<!-- if (DOWNSAMPLE) { -->
+<!--     for (item in names(covs)) { -->
+<!--         covs[[item]] <- keepSeqlevels(covs[[item]], "chr19", pruning.mode="coarse") -->
+<!--     } -->
+<!-- } -->
+
+<!-- names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(names(covs))) -->
+<!-- meta <- meta[meta$Run %in% names(covs),] -->
+<!-- rownames(meta) <- meta$Run -->
+<!-- names(covs) <- sprintf('`%s` %s\n%s\n%s',  meta[names(covs), 'chip_antibody'], -->
+<!--                        names(covs), meta[names(covs), 'Treatment'], -->
+<!--                        meta[names(covs), 'tissue.cell_type']) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- covs <- lapply(covs, function(x) ScoreMatrixBin(x, genes_asis, -->
+<!--                                                 is.noCovNA = TRUE, -->
+<!--                                                 bin.num = 100, -->
+<!--                                                 type = "auto",  strand.aware = TRUE)) -->
+
+
+
+<!-- covs <- ScoreMatrixList(covs, bin.num = 100, cores = NTHREADS) -->
+
+<!-- ``` -->
+
+<!-- Raw -->
+
+
+<!-- ```{r, fig.width = 10, fig.height = 6} -->
+<!-- set.seed(1) -->
+<!-- multiHeatMatrix(c(sml_genes_with_cpg, covs), -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
+<!--                 order = TRUE, -->
+<!--                 winsorize = c(1,99), -->
+<!--                 col = viridis(9), -->
+<!--                 clust.matrix = 1:4, -->
+<!--                 cex.main = 0.3) -->
+<!-- ``` -->
+
+<!-- Scaled -->
+
+<!-- ```{r, fig.width = 10, fig.height = 6} -->
+<!-- set.seed(1) -->
+<!-- multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(covs)), -->
+<!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -->
+<!--                 order = TRUE, -->
+<!--                 winsorize = c(1,99), -->
+<!--                 col = viridis(9), -->
+<!--                 clust.matrix = 1:4, -->
+<!--                 cex.main = 0.3) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- assign(gse, covs) -->
+<!-- ``` -->
+
+
+
+
+<!-- # Stratified metaplots with more data -->
+
+<!-- ## Promoters -->
+
+<!-- ```{r} -->
+<!-- mat.list = lapply(c(sml_genes_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161, GSE69806), function(x) x@.Data) -->
+
+<!-- names(mat.list) <- names(c(sml_genes_with_cpg, GSE125068, peaks, lung_liver_cenp, GSE21161, GSE69806)) -->
+<!-- longer <- list() -->
+<!-- for (samp in names(mat.list)) { -->
+<!--     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name) -->
+<!--     longer[[samp]] <- list() -->
+<!--     for (cl in unique(group.vector)) { -->
+<!--         ## cat(samp, ' ' , cl, '\n\n') -->
+<!--         tryCatch({ -->
+<!--         idx <- group.vector == cl -->
+<!--         tmp <- colMeans(as.data.frame(val2unit(mat.list[[samp]][idx,]))) -->
+
+<!--         tmp <- data.frame(value = tmp, -->
+<!--                           pos = names(tmp), -->
+<!--                           cluster = cl, -->
+<!--                           sample = samp) -->
+<!--         longer[[samp]][[as.character(cl)]] <- tmp -->
+<!--         }, error = function(x) print(x)) -->
+
+
+<!--     } -->
+<!--      longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]]) -->
+<!-- } -->
+
+<!-- longer <- do.call(rbind.data.frame, longer) -->
+
+<!-- longer$pos <- as.numeric(gsub('V', '', longer$pos)) -->
+
+<!-- longer$value[is.na(longer$value)] <- 0 -->
+<!-- rm(mat.list) -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- longer$category <- 'else' -->
+<!-- longer$category[grepl('cenp', longer$sample)] <- 'eg_CENP' -->
+<!-- longer$category[grepl('ATAC', longer$sample)] <- 'eg_ATAC' -->
+<!-- longer$category[grepl('K4me3', longer$sample)] <- 'eg_K4me3' -->
+<!-- longer$category[grepl('K4me1', longer$sample)] <- 'eg_K4me1' -->
+<!-- longer$category[grepl('Pol2', longer$sample)] <- 'ex_Pol2' -->
+<!-- longer$category[grepl('nuRNA', longer$sample)] <- 'ex_nuRNA' -->
+<!-- longer$category[grepl('riboRNA', longer$sample)] <- 'ex_riboRNA' -->
+<!-- longer$category[grepl('cenp_liver', longer$sample)] <- 'eg_CENP_liver' -->
+<!-- longer$category[grepl('CREB', longer$sample)] <- 'eg_CREB' -->
+<!-- longer$category[grepl('SRF', longer$sample)] <- 'eg_SRF' -->
+<!-- longer$category[grepl('NeuN', longer$sample)] <- 'eg_H3.3' -->
+<!-- longer$category[grepl('H3.3', longer$sample)] <- 'eg_H3.3' -->
+<!-- longer$category[grepl('SRR2061076', longer$sample)] <- 'eg_H3.3' -->
+
+<!-- longer <- longer[longer$category != 'ex_riboRNA',] -->
+<!-- ## unique(longer[longer$category == 'else', 'sample']) -->
+
+<!-- ## longer$panel <- ifelse(grepl('^eg_', longer$category), yes = 'chromatin', no = 'RNA') -->
+
+<!-- longer$panel[grepl('K4', longer$category)] <- 'active' -->
+<!-- longer$panel[grepl('Pol2', longer$category)] <- 'RNA' -->
+<!-- longer$panel[grepl('ATAC', longer$category)] <- 'active' -->
+
+<!-- longer$panel[grepl('H3.3', longer$category)] <- 'H3.3' -->
+
+<!-- longer$panel[grepl('RNA', longer$category)] <- 'RNA' -->
+
+
+<!-- longer$panel[grepl('CENP', longer$category)] <- 'CENP' -->
+
+<!-- longer$panel[grepl('SRF', longer$category)] <- 'SRF/CREB' -->
+<!-- longer$panel[grepl('CREB', longer$category)] <- 'SRF/CREB' -->
+
+<!-- longer$category <- gsub('eg_', '', gsub('ex_', '', longer$category)) -->
+
+<!-- table(longer$category, longer$panel, useNA = 'always') -->
+
+
+<!-- ``` -->
+
+<!-- ```{r, fig.width = 8, fig.height = 10} -->
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = sample)) + -->
+<!--     geom_smooth(method = "loess") + -->
+<!--     facet_grid(category~cluster) + -->
+<!--     theme_bw() -->
+<!-- ``` -->
+
+
+<!-- ```{r, fig.width = 10, fig.height = 8} -->
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample)) + -->
+<!--     geom_smooth(method = "loess") + -->
+<!--     facet_grid(panel~cluster) + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized position', -->
+<!--                      breaks = c(0, 50), labels = c('TSS', 'TES'), limits = c(0, 50)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample)) + -->
+<!--     geom_smooth(method = "loess", se = FALSE) + -->
+<!--     facet_grid(panel~cluster) + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized position', -->
+<!--                       breaks = c(0, 50), labels = c('TSS', 'TES'), limits = c(0, 50)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample)) + -->
+<!--     geom_line() + -->
+<!--     facet_grid(panel~cluster) + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized position', -->
+<!--                       breaks = c(0, 50), labels = c('TSS', 'TES'), limits = c(0, 50)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+<!-- ``` -->
+
+<!-- ## Genes -->
+
+
+<!-- <\!-- ## add some expression data, armor-based -\-> -->
+
+<!-- <\!-- from vkorob/armor -\-> -->
+
+
+<!-- <\!-- ```{r} -\-> -->
+<!-- <\!-- # imlstaupo ln -s /home/vkorob/scRNAseq_GSE125068/output/outputR/ ; in shared armor_GSE125068_out -\-> -->
+<!-- <\!-- ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor' -\-> -->
+<!-- <\!-- edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt')) -\-> -->
+    
+<!-- <\!-- edge_pos <- list() -\-> -->
+<!-- <\!-- edge_neg <- list() -\-> -->
+<!-- <\!-- for (fn in edge_fns) { -\-> -->
+<!-- <\!--     ## if (DOWNSAMPLE) { -\-> -->
+<!-- <\!--     ##     tmp <- readGeneric(pipe(sprintf('zcat %s | fgrep chr19', fn)), -\-> -->
+<!-- <\!--     ##                        header = FALSE, meta.col = list(cov = 4)) -\-> -->
+<!-- <\!--     ## } else{ -\-> -->
+<!-- <\!--     ##     tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4)) -\-> -->
+<!-- <\!--     ## } -\-> -->
+
+<!-- <\!--     tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12, -\-> -->
+<!-- <\!--                                                           logCPM = 13, F = 14, pval = 15, padj = 16)) -\-> -->
+
+<!-- <\!--     seqlevelsStyle(tmp) <- "UCSC" -\-> -->
+<!-- <\!--     if (DOWNSAMPLE) { -\-> -->
+<!-- <\!--          seqlevelsStyle(tmp) <- 'UCSC' -\-> -->
+<!-- <\!--         tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse") -\-> -->
+<!-- <\!--     } else { -\-> -->
+        
+<!-- <\!--         seqlevelsStyle(tmp) <- 'UCSC' -\-> -->
+<!-- <\!--         tmp <- keepSeqlevels(tmp, allowed_chr, pruning.mode="coarse") -\-> -->
+        
+<!-- <\!--     } -\-> -->
+    
+<!-- <\!--     edge_pos[[paste0(fn, '_up')]] <- tmp[tmp$logFC >= 0] -\-> -->
+<!-- <\!--     edge_neg[[paste0( fn, '_down')]] <- tmp[tmp$logFC < 0] -\-> -->
+
+<!-- <\!--     ## swap logFC to be in the positive range -\-> -->
+<!-- <\!--     edge_neg[[paste0( fn, '_down')]]$logFC <- abs(edge_neg[[paste0( fn, '_down')]]$logFC) -\-> -->
+    
+<!-- <\!--     rm(tmp) -\-> -->
+<!-- <\!-- } -\-> -->
+
+<!-- <\!-- names(edge_pos) <-  gsub('edgeR_dge_results_', '', basename(names(edge_pos))) -\-> -->
+<!-- <\!-- names(edge_neg) <-  gsub('edgeR_dge_results_', '', basename(names(edge_neg))) -\-> -->
+
+
+<!-- <\!-- ## the weight col is the metadata one -\-> -->
+<!-- <\!-- ## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 100, weight.col = 'logFC') -\-> -->
+
+
+<!-- <\!-- edge_sm <- lapply(c(edge_pos, edge_neg), -\-> -->
+<!-- <\!--                   function(x) ScoreMatrixBin(x, genes_asis, -\-> -->
+<!-- <\!--                                              is.noCovNA = TRUE, -\-> -->
+<!-- <\!--                                              bin.num = 100, -\-> -->
+<!-- <\!--                                              type = "auto",  strand.aware = TRUE)) -\-> -->
+
+
+
+<!-- <\!-- edge <- ScoreMatrixList(edge_sm, bin.num = 100, cores = NTHREADS) -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- ```{r, fig.width = 15, fig.height = 8} -\-> -->
+
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, edge), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.1) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- ```{r, fig.width = 15, fig.height = 8} -\-> -->
+
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(edge)), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.1) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- That's way to weird, why are the signals outside the -2 +1 ? -\-> -->
+
+<!-- <\!-- Anyway, cluster (unscaled) according to the diff expression of one contrast, and then one cenp only -\-> -->
+
+
+<!-- <\!-- ```{r, fig.width = 20, fig.height = 8} -\-> -->
+
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, edge), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = c(6:7, 1), -\-> -->
+<!-- <\!--                 cex.main = 0.25) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- Weird, are we using the same coords? let's try the logcpm, just in case -\-> -->
+
+
+<!-- <\!-- ```{r} -\-> -->
+<!-- <\!-- # imlstaupo ln -s /home/vkorob/scRNAseq_GSE125068/output/outputR/ ; in shared armor_GSE125068_out -\-> -->
+<!-- <\!-- ARMOR <- '/home/imallona/cenp_chip/public/GSE125068/in_house_armor' -\-> -->
+<!-- <\!-- edge_fns <- file.path(ARMOR, list.files(ARMOR, '.*txt')) -\-> -->
+    
+<!-- <\!-- edge <- list() -\-> -->
+<!-- <\!-- for (fn in edge_fns) { -\-> -->
+<!-- <\!--     ## if (DOWNSAMPLE) { -\-> -->
+<!-- <\!--     ##     tmp <- readGeneric(pipe(sprintf('zcat %s | fgrep chr19', fn)), -\-> -->
+<!-- <\!--     ##                        header = FALSE, meta.col = list(cov = 4)) -\-> -->
+<!-- <\!--     ## } else{ -\-> -->
+<!-- <\!--     ##     tmp <- readGeneric(fn, header = TRUE, meta.col = list(cov = 4)) -\-> -->
+<!-- <\!--     ## } -\-> -->
+
+<!-- <\!--     tmp <- readGeneric(fn, header = TRUE, meta.col = list(gene_id = 6, gene_name = 7, logFC = 12, -\-> -->
+<!-- <\!--                                                           logCPM = 13, F = 14, pval = 15, padj = 16)) -\-> -->
+
+<!-- <\!--     seqlevelsStyle(tmp) <- "UCSC" -\-> -->
+<!-- <\!--     if (DOWNSAMPLE) { -\-> -->
+<!-- <\!--          seqlevelsStyle(tmp) <- 'UCSC' -\-> -->
+<!-- <\!--         tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse") -\-> -->
+<!-- <\!--     } else { -\-> -->
+        
+<!-- <\!--         seqlevelsStyle(tmp) <- 'UCSC' -\-> -->
+<!-- <\!--         tmp <- keepSeqlevels(tmp, allowed_chr, pruning.mode="coarse") -\-> -->
+        
+<!-- <\!--     } -\-> -->
+    
+<!-- <\!--     edge[[fn]] <- tmp -\-> -->
+    
+<!-- <\!--     rm(tmp) -\-> -->
+<!-- <\!-- } -\-> -->
+
+<!-- <\!-- names(edge_pos) <-  gsub('edgeR_dge_results_', '', basename(names(edge_pos))) -\-> -->
+<!-- <\!-- names(edge_neg) <-  gsub('edgeR_dge_results_', '', basename(names(edge_neg))) -\-> -->
+
+
+<!-- <\!-- ## the weight col is the metadata one -\-> -->
+<!-- <\!-- ## edge_sm <- ScoreMatrixList(edge, genes_asis, bin.num = 100, weight.col = 'logFC') -\-> -->
+
+
+<!-- <\!-- edge_sm <- lapply(c(edge), -\-> -->
+<!-- <\!--                   function(x) ScoreMatrixBin(x, genes_asis, -\-> -->
+<!-- <\!--                                              is.noCovNA = TRUE, -\-> -->
+<!-- <\!--                                              bin.num = 100, -\-> -->
+<!-- <\!--                                              type = "auto",  strand.aware = TRUE)) -\-> -->
+
+
+
+<!-- <\!-- edge <- ScoreMatrixList(edge_sm, bin.num = 100, cores = NTHREADS) -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- ```{r, fig.width = 15, fig.height = 8} -\-> -->
+
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, edge), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.3) -\-> -->
+
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- And scaled -\-> -->
+
+<!-- <\!-- ```{r, fig.width = 15, fig.height = 8} -\-> -->
+
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, scaleScoreMatrixList(edge)), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.3) -\-> -->
+
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- I don't think this is correct, maybe because of the promoter-plotting? let's check transcripts out of curiosity? and flank 3k each side -\-> -->
+
+
+<!-- <\!-- ```{r} -\-> -->
+
+<!-- <\!-- txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene -\-> -->
+
+<!-- <\!-- wtranscripts <- flank(transcripts(txdb), 3000) -\-> -->
+
+
+<!-- <\!-- if (DOWNSAMPLE) { -\-> -->
+<!-- <\!--     wtranscripts <-  keepSeqlevels(wtranscripts, "chr19", pruning.mode="coarse") -\-> -->
+<!-- <\!-- } else { -\-> -->
+<!-- <\!--     wtranscripts <-  keepSeqlevels(wtranscripts, allowed_chr, pruning.mode="coarse") -\-> -->
+<!-- <\!-- } -\-> -->
+
+<!-- <\!-- ## wtranscripts$symbol <- mapIds(org.Mm.eg.db, -\-> -->
+<!-- <\!-- ##                            keys = wtranscripts$gene_id, -\-> -->
+<!-- <\!-- ##                            column = "SYMBOL", -\-> -->
+<!-- <\!-- ##                            keytype = "ENTREZID", -\-> -->
+<!-- <\!-- ##                            multiVals = "first") -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- ```{r} -\-> -->
+<!-- <\!-- covs_fns <- file.path(BEDGRAPHS, list.files(BEDGRAPHS, pattern = '.*bga.bedgraph.gz$')) -\-> -->
+
+<!-- <\!-- covs <- lapply(covs_fns, function(x) readGeneric(x, header = TRUE, meta.col = list(cov = 4))) -\-> -->
+
+<!-- <\!-- names(covs) <- gsub('_cov_bga.bedgraph.gz', '', basename(covs_fns)) -\-> -->
+
+<!-- <\!-- if (DOWNSAMPLE) { -\-> -->
+<!-- <\!--     for (item in names(covs)) { -\-> -->
+<!-- <\!--         covs[[item]] <- keepSeqlevels(covs[[item]], "chr19", pruning.mode="coarse") -\-> -->
+<!-- <\!--     } -\-> -->
+<!-- <\!-- } else { -\-> -->
+<!-- <\!--     for (item in names(covs)) { -\-> -->
+<!-- <\!--         covs[[item]] <- keepSeqlevels(covs[[item]], allowed_chr, pruning.mode="coarse") -\-> -->
+<!-- <\!--     } -\-> -->
+<!-- <\!-- } -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- Rename sample swaps!!! -\-> -->
+
+<!-- <\!-- ```{r} -\-> -->
+
+<!-- <\!-- names(covs) -\-> -->
+<!-- <\!-- names(covs) <- c('cenp_HC_1', 'cenp_PTZ_23', 'cenp_PTZ_1', 'cenp_HC_23') -\-> -->
+<!-- <\!-- names(covs) -\-> -->
+
+<!-- <\!-- covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')] -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- ```{r} -\-> -->
+<!-- <\!-- ## ?ScoreMatrix -\-> -->
+<!-- <\!-- sml <- ScoreMatrixList(covs, wtranscripts, bin.num = 100, type = "auto",  strand.aware = TRUE, cores = NTHREADS, -\-> -->
+<!-- <\!--                        is.noCovNA = TRUE) -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- ```{r, fig.width = 20, fig.height = 8} -\-> -->
+
+<!-- <\!-- sm_cpgi_transcripts <- ScoreMatrixBin(target = do.call(c, cpgi_mm10), -\-> -->
+<!-- <\!--                                 windows = wtranscripts, strand.aware = TRUE, -\-> -->
+<!-- <\!--                                 bin.num = 100) -\-> -->
+
+
+<!-- <\!-- names(edge) <- gsub('edgeR_dge_results_', '', basename(names(edge))) -\-> -->
+<!-- <\!-- names(edge) <- gsub('treatment_', '', names(edge)) -\-> -->
+
+<!-- <\!-- multiHeatMatrix(c(scaleScoreMatrixList(sml), -\-> -->
+<!-- <\!--                   sm_cpgi_transcripts, -\-> -->
+<!-- <\!--                   edge), -\-> -->
+<!-- <\!--                 clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.5) -\-> -->
+
+<!-- <\!-- multiHeatMatrix(c(scaleScoreMatrixList(sml), -\-> -->
+<!-- <\!--                   sm_cpgi_transcripts, -\-> -->
+<!-- <\!--                   scaleScoreMatrixList(edge)), -\-> -->
+<!-- <\!--                 clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.5) -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- ## till here -\-> -->
+
+<!-- <\!-- ```{r, cache = FALSE} -\-> -->
+<!-- <\!-- knitr::knit_exit() -\-> -->
+<!-- <\!-- ``` -\-> -->
+
+<!-- # Other (unused) datasets -->
+
+<!-- <\!-- ## GSE69806 H3.3 diff peaks -\-> -->
+
+<!-- <\!-- Caution this is mm9, liftover. some very annotated diff binding result. Chroms UCSC-style. -\-> -->
+
+<!-- <\!-- ```{r, cache = FALSE} -\-> -->
+
+<!-- <\!-- gse <- 'GSE69806' -\-> -->
+
+<!-- <\!-- fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'), -\-> -->
+<!-- <\!--                  list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*txt.gz$')) -\-> -->
+
+<!-- <\!-- ## bws <- ScoreMatrixList(fns, genes_asis, -\-> -->
+<!-- <\!-- ##                        type = "auto",  strand.aware = TRUE, -\-> -->
+<!-- <\!-- ##                        bin.num = 100) -\-> -->
+
+<!-- <\!-- curr <- list() -\-> -->
+<!-- <\!-- for (fn in fns) { -\-> -->
+
+<!-- <\!--     tmp <- readGeneric(fn, header = TRUE) -\-> -->
+
+<!-- <\!--     tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']])) -\-> -->
+
+<!-- <\!--     if (DOWNSAMPLE){ -\-> -->
+<!-- <\!--         seqlevelsStyle(tmp) <- 'UCSC' -\-> -->
+
+<!-- <\!--         tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse") -\-> -->
+<!-- <\!--     } -\-> -->
+
+
+<!-- <\!--     curr[[fn]] <- ScoreMatrixBin(tmp, -\-> -->
+<!-- <\!--                               bin.num = 100, -\-> -->
+<!-- <\!--                               genes_asis, -\-> -->
+<!-- <\!--                               type = "auto",  strand.aware = TRUE) -\-> -->
+
+<!-- <\!--     rm(tmp)         -\-> -->
+<!-- <\!-- } -\-> -->
+
+<!-- <\!-- names(curr) -\-> -->
+<!-- <\!-- names(curr) <- gsub('.txt.gz', '', gsub('GSE69806_', '', basename(fns))) -\-> -->
+
+<!-- <\!-- names(curr) -\-> -->
+
+
+<!-- <\!-- curr <- ScoreMatrixList(curr, bin.num = 100) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- ```{r, fig.width = 10, fig.height = 6, cache = FALSE} -\-> -->
+<!-- <\!-- set.seed(1) -\-> -->
+
+<!-- <\!-- curr[[3]] <- NULL ## has no intervals in the range -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, curr), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.6) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- ```{r, fig.width = 30, fig.height = 6, cache = FALSE} -\-> -->
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161, curr), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.6) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+
+<!-- <\!-- ```{r, fig.width = 30, fig.height = 6} -\-> -->
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161, curr), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 col = brewer.pal(9,"Blues"), -\-> -->
+<!-- <\!--                 cex.main = 0.8) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- ```{r} -\-> -->
+<!-- <\!-- assign(gse, curr) -\-> -->
+<!-- <\!-- get(gse) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- Finally, what if plotting the raw data? without min/max -->
+
+<!-- ```{r} -->
+<!-- mat.list = lapply(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161, GSE69806), function(x) x@.Data) -->
+
+<!-- names(mat.list) <- names(c(sml, GSE125068, peaks, lung_liver_cenp, GSE21161, GSE69806)) -->
+<!-- longer <- list() -->
+<!-- for (samp in names(mat.list)) { -->
+<!--     ## table(tidyr::pivot_longer(data = as.data.frame(mat.list[[samp]]), cols = 1:ncol(mat.list[[samp]]))$name) -->
+<!--     longer[[samp]] <- list() -->
+<!--     for (cl in unique(group.vector)) { -->
+<!--         ## cat(samp, ' ' , cl, '\n\n') -->
+<!--         tryCatch({ -->
+<!--         idx <- group.vector == cl -->
+<!--         tmp <- colMeans(as.data.frame(mat.list[[samp]][idx,])) -->
+
+<!--         tmp <- data.frame(value = tmp, -->
+<!--                           pos = names(tmp), -->
+<!--                           cluster = cl, -->
+<!--                           sample = samp) -->
+<!--         longer[[samp]][[as.character(cl)]] <- tmp -->
+<!--         }, error = function(x) {print(x); cat(samp, cl)}) -->
+
+
+<!--     } -->
+<!--      longer[[samp]] <- do.call(rbind.data.frame, longer[[samp]]) -->
+<!-- } -->
+
+<!-- longer <- do.call(rbind.data.frame, longer) -->
+
+<!-- longer$pos <- as.numeric(gsub('V', '', longer$pos)) -->
+
+<!-- longer$value[is.na(longer$value)] <- 0 -->
+<!-- rm(mat.list) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- longer$category <- 'else' -->
+<!-- longer$category[grepl('cenp', longer$sample)] <- 'eg_CENP' -->
+<!-- longer$category[grepl('ATAC', longer$sample)] <- 'eg_ATAC' -->
+<!-- longer$category[grepl('K4me3', longer$sample)] <- 'eg_K4me3' -->
+<!-- longer$category[grepl('K4me1', longer$sample)] <- 'eg_K4me1' -->
+<!-- longer$category[grepl('Pol2', longer$sample)] <- 'ex_Pol2' -->
+<!-- longer$category[grepl('nuRNA', longer$sample)] <- 'ex_nuRNA' -->
+<!-- longer$category[grepl('riboRNA', longer$sample)] <- 'ex_riboRNA' -->
+<!-- longer$category[grepl('cenp_liver', longer$sample)] <- 'eg_CENP_liver' -->
+<!-- longer$category[grepl('CREB', longer$sample)] <- 'eg_CREB' -->
+<!-- longer$category[grepl('SRF', longer$sample)] <- 'eg_SRF' -->
+<!-- longer$category[grepl('NeuN', longer$sample)] <- 'eg_H3.3' -->
+<!-- longer$category[grepl('H3.3', longer$sample)] <- 'eg_H3.3' -->
+<!-- longer$category[grepl('SRR2061076', longer$sample)] <- 'eg_H3.3' -->
+
+<!-- longer <- longer[longer$category != 'ex_riboRNA',] -->
+<!-- ## unique(longer[longer$category == 'else', 'sample']) -->
+
+<!-- ## longer$panel <- ifelse(grepl('^eg_', longer$category), yes = 'chromatin', no = 'RNA') -->
+
+<!-- longer$panel[grepl('K4', longer$category)] <- 'active' -->
+<!-- longer$panel[grepl('Pol2', longer$category)] <- 'RNA' -->
+<!-- longer$panel[grepl('ATAC', longer$category)] <- 'active' -->
+
+<!-- longer$panel[grepl('H3.3', longer$category)] <- 'H3.3' -->
+
+<!-- longer$panel[grepl('RNA', longer$category)] <- 'RNA' -->
+
+
+<!-- longer$panel[grepl('CENP', longer$category)] <- 'CENP' -->
+
+<!-- longer$panel[grepl('SRF', longer$category)] <- 'SRF/CREB' -->
+<!-- longer$panel[grepl('CREB', longer$category)] <- 'SRF/CREB' -->
+
+<!-- longer$category <- gsub('eg_', '', gsub('ex_', '', longer$category)) -->
+
+<!-- table(longer$category, longer$panel, useNA = 'always') -->
+<!-- ## unique(longer$sample[is.na(longer$category)]) -->
+<!-- ## head(longer[is.na(longer$category),]) -->
+
+<!-- ## longer <- na.omit(longer) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r, fig.width = 10, fig.height = 8} -->
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample)) + -->
+<!--     geom_smooth(method = "loess") + -->
+<!--     facet_grid(panel~cluster) + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized position', -->
+<!--                      breaks = c(0, 25, 50), labels = c('TSS', 'mid', 'TES'), limits = c(0, 25, 50)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ -->
+<!--     scale_y_continuous(trans='log1p') -->
+
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample)) + -->
+<!--     geom_smooth(method = "loess", se = FALSE) + -->
+<!--     facet_grid(panel~cluster) + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized position', -->
+<!--                      breaks = c(0, 25, 50), labels = c('TSS', 'mid', 'TES'), limits = c(0, 25, 50)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ -->
+<!--     scale_y_continuous(trans='log1p') -->
+
+<!-- ggplot(data = longer, aes(x = pos, y = value, color = category, group.by = sample)) + -->
+<!--     geom_line() + -->
+<!--     facet_grid(panel~cluster) + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized position', -->
+<!--                      breaks = c(0, 25, 50), labels = c('TSS', 'mid', 'TES'), limits = c(0, 25, 50)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--     scale_y_continuous(trans='log1p') -->
+<!-- ``` -->
+
+
+
+
+<!-- <\!-- ## 	Shen L, Maze I GSE69806 TSS counts -\-> -->
+
+<!-- <\!-- Caution this is mm9, liftover. TSS counts. Chroms UCSC-style. -\-> -->
+
+<!-- <\!-- ```{r, cache = FALSE} -\-> -->
+
+<!-- <\!-- gse <- 'GSE69806' -\-> -->
+
+<!-- <\!-- fns <- file.path(PUBLIC, paste0(gse, '_caution_mm9'), -\-> -->
+<!-- <\!--                  list.files(file.path(PUBLIC, paste0(gse, '_caution_mm9')), pattern = '.*cnt.gz$')) -\-> -->
+
+<!-- <\!-- ## bws <- ScoreMatrixList(fns, genes_asis, -\-> -->
+<!-- <\!-- ##                        type = "auto",  strand.aware = TRUE, -\-> -->
+<!-- <\!-- ##                        bin.num = 100) -\-> -->
+
+<!-- <\!-- curr <- list() -\-> -->
+<!-- <\!-- for (fn in fns) { -\-> -->
+
+<!-- <\!--     tmp <- readGeneric(fn, header = TRUE) -\-> -->
+
+<!-- <\!--     tmp <- unlist(rtracklayer::liftOver(x = tmp, chain = chainfiles[['AH14596']])) -\-> -->
+
+<!-- <\!--     if (DOWNSAMPLE){ -\-> -->
+<!-- <\!--         seqlevelsStyle(tmp) <- 'UCSC' -\-> -->
+
+<!-- <\!--         tmp <- keepSeqlevels(tmp, "chr19", pruning.mode="coarse") -\-> -->
+<!-- <\!--     } -\-> -->
+
+
+<!-- <\!--     curr[[fn]] <- ScoreMatrixBin(tmp, -\-> -->
+<!-- <\!--                               bin.num = 100, -\-> -->
+<!-- <\!--                               genes_asis, -\-> -->
+<!-- <\!--                               type = "auto",  strand.aware = TRUE) -\-> -->
+
+<!-- <\!--     rm(tmp)         -\-> -->
+<!-- <\!-- } -\-> -->
+
+<!-- <\!-- names(curr) -\-> -->
+<!-- <\!-- names(curr) <- gsub('.cnt.gz', '', gsub('GSE69806_Mus_musculus.NCBIM37.62.', '', basename(fns))) -\-> -->
+
+<!-- <\!-- names(curr) -\-> -->
+
+
+<!-- <\!-- curr <- ScoreMatrixList(curr, bin.num = 100, cores = NTHREADS) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- ```{r, fig.width = 10, fig.height = 6, cache = FALSE} -\-> -->
+<!-- <\!-- set.seed(1) -\-> -->
+
+<!-- <\!-- curr[[3]] <- NULL ## has no intervals in the range -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, curr), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.6) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- <\!-- ```{r, fig.width = 30, fig.height = 6, cache = FALSE} -\-> -->
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161, curr), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 col = viridis(9), -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 cex.main = 0.6) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+
+<!-- <\!-- ```{r, fig.width = 30, fig.height = 6} -\-> -->
+<!-- <\!-- set.seed(1) -\-> -->
+<!-- <\!-- multiHeatMatrix(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161, curr), -\-> -->
+<!-- <\!--                 xcoords = c(minx, maxx), clustfun = function(x) kmeans(x, centers = 2)$cluster, -\-> -->
+<!-- <\!--                 order = TRUE, -\-> -->
+<!-- <\!--                 clust.matrix = 1:4, -\-> -->
+<!-- <\!--                 col = brewer.pal(9,"Blues"), -\-> -->
+<!-- <\!--                 cex.main = 0.8) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- <\!-- ```{r} -\-> -->
+<!-- <\!-- assign(gse, curr) -\-> -->
+<!-- <\!-- get(gse) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+
+<!-- ## Stratified metaplots {.tabset .tabset-pills} -->
+
+<!-- ### Promoters -->
+
+
+<!-- ### Genes -->
+
+
+
+<!-- <\!-- # Correlation plots -\-> -->
+
+<!-- <\!-- ```{r, eval = FALSE} -\-> -->
+<!-- <\!-- c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161) -\-> -->
+<!-- <\!-- names(c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161)) -\-> -->
+
+<!-- <\!-- ## joint <- ScoreMatrixList(list(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161), targets = genes_asis, -\-> -->
+<!-- <\!-- ##                          bin.num = 100) -\-> -->
+
+<!-- <\!-- ## c(sml_genes_with_cpg, GSE125068, GSE85873, GSE21161) -\-> -->
+<!-- <\!-- ## c(sml_genes_with_cpg, GSE125068, GSE85873, curr) -\-> -->
+<!-- <\!-- ## dim(sml[[1]]@.Data) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+# Trace
+
+```{r}
+sessionInfo()
+devtools::session_info()
+```
