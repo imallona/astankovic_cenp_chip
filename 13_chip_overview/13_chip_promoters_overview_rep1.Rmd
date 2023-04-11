@@ -43,7 +43,7 @@ suppressPackageStartupMessages({
 ```
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
-knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
+knitr::opts_chunk$set(autodep = TRUE, cache = FALSE,
                       cache.lazy = FALSE,
                       dev = c("png", "svg"),
                       fig.width = 4, fig.height = 4,
@@ -166,7 +166,6 @@ covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')]
 Remove two replicates (will go to suplementary)
 
 ```{r}
-
 covs[['cenp_HC_23']] <- NULL
 covs[['cenp_PTZ_23']] <- NULL
 ```
@@ -2770,7 +2769,7 @@ test %>% group_by(sample, cluster, pos) %>%
 
 
 ```{r, cache = FALSE}
-saveRDS(test, file = 'test_promoters_another.rds')
+saveRDS(test, file = 'test_promoters_another_rep1.rds')
 
 ## test <- readRDS('test_another.rds')
 ## unique(test$sample)

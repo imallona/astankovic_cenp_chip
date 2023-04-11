@@ -1104,7 +1104,7 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
 
     foo <- list(cenp_hc_1 = as.data.frame(mcols(peaks$peaks$cenp_HC_1)),
                 ## cenp_hc_23 = as.data.frame(mcols(peaks$peaks$cenp_HC_23)),
-                cenp_ptz_1 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_1))),
+                cenp_ptz_1 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_1)))#,
                 ## cenp_ptz_23 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_23)))
 
     foo$cenp_hc_1$origin <- 'cenp_hc_1'
@@ -3405,7 +3405,7 @@ test$pos <- as.numeric(gsub('V', '', test$pos))
 
 
 ```{r, cache = FALSE}
-saveRDS(test, file = 'test_genes_another.rds')
+saveRDS(test, file = 'test_genes_another_rep1.rds')
 
 ## test <- readRDS('test_another.rds')
 ## unique(test$sample)

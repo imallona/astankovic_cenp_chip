@@ -35,7 +35,7 @@ suppressPackageStartupMessages({
 ```
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
-knitr::opts_chunk$set(autodep = TRUE, cache = FALSE,
+knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
                       cache.lazy = FALSE,
                       dev = c("png", "svg"),
                       fig.width = 5, fig.height = 5,
@@ -59,10 +59,16 @@ genes_proms <- promoters(genes(txdb), upstream = 2000, downstream = 1000)
 
 tsss <- resize(transcripts(txdb), width = 1, fix = 'start')
 
+allowed_chr <- paste0('chr', c(1:19, 'X'))
+
 if (DOWNSAMPLE) {
     all_proms <- keepSeqlevels(all_proms, "chr19", pruning.mode="coarse")
     genes_proms <- keepSeqlevels(genes_proms, "chr19", pruning.mode="coarse")
     tsss <-  keepSeqlevels(tsss, "chr19", pruning.mode="coarse")
+} else {
+    all_proms <- keepSeqlevels(all_proms, allowed_chr, pruning.mode="coarse")
+    genes_proms <- keepSeqlevels(genes_proms, allowed_chr, pruning.mode="coarse")
+    tsss <-  keepSeqlevels(tsss, allowed_chr, pruning.mode="coarse")
 }
 
 ## genes <- genes(txdb)
@@ -316,6 +322,8 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+} else {
+    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -378,6 +386,8 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+} else {
+    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -443,8 +453,10 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+} else {
+    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
-
+ 
 
 zoom_sml <- ScoreMatrixList(bams, zoomed_proms, bin.num = 50, type = "bam", param = param,
                        strand.aware = TRUE)
@@ -489,6 +501,8 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+} else {
+    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -537,6 +551,8 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+} else {
+    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -580,6 +596,8 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
+} else {
+    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -616,7 +634,8 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
 
 
 
-```{r}
+```{r, cache = FALSE}
+sessionInfo()
 knitr::knit_exit()
 ```
 
