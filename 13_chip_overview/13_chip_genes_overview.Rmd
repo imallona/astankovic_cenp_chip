@@ -41,7 +41,7 @@ suppressPackageStartupMessages({
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
                       cache.lazy = FALSE,
-                      dev = "png",
+                      dev = c("png", "svg"),
                       fig.width = 4, fig.height = 4,
                       dev.args = list(png = list(type = "cairo")),
                       warning = FALSE, message = FALSE)
@@ -156,10 +156,10 @@ names(covs)
 covs <- covs[c('cenp_HC_1', 'cenp_HC_23', 'cenp_PTZ_1', 'cenp_PTZ_23')]
 ```
 
-Remove two replicates (will go to suplementary)
+<!-- Remove two replicates (will go to suplementary) -->
 
-```{r}
-
+```{r, eval = FALSE, cache = FALSE}
+stop('')
 covs[['cenp_HC_23']] <- NULL
 covs[['cenp_PTZ_23']] <- NULL
 ```
@@ -174,9 +174,10 @@ sml_genes <- ScoreMatrixList(covs, windows = genes_asis,
 ```{r}
 ## we cluster once on CENPA-in-house-only, and reuse that for plotting across datasets
 mat.list = lapply(sml_genes, function(x) x@.Data)
-    group.vector = NULL
+group.vector = NULL
 
-clust.matrix = 1:2
+## clustering based on HC_1 and PTZ_1
+clust.matrix = c(1,3)
 mat2 = do.call("cbind", mat.list[clust.matrix])
 clustfun = function(x) kmeans(x, centers = NUM_CLUSTERS)$cluster
 
@@ -195,7 +196,8 @@ sml_genes_scaled <- scaleScoreMatrixList(sml_genes)
 mat.list = lapply(sml_genes_scaled, function(x) x@.Data)
     group.vector = NULL
 
-clust.matrix = 1:2
+## clustering based on HC_1 and PTZ_1
+clust.matrix = c(1,3)
 mat2 = do.call("cbind", mat.list[clust.matrix])
 clustfun = function(x) kmeans(x, centers = NUM_CLUSTERS)$cluster
 
@@ -1118,8 +1120,9 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
         ggplot(aes(fill=geneLevel, y=count, x=origin)) + 
         geom_bar(position="fill", stat="identity") +
         theme_bw() +
-        ylab('percent') +
+        ylab('proportion') +
         xlab('condition') +
+        coord_flip() +
         ggtitle(sprintf('Quantile %s', quant)))
     
     
@@ -3335,9 +3338,9 @@ multiHeatMatrix(harmonize_sml(tmp, clu[tmp_idx]),
 
 ```
 
-test on resorting the thing
+can we resort clusters?
 
-```{r}
+```{r, fig.height = 6, fig.width = 25}
 
 sorting <- as.factor(clu[tmp_idx])
 
@@ -3487,7 +3490,7 @@ test$category <- factor(test$category, levels = selected_metaplot)
 test <- test[!test$sample %in% 'GSM2442440_5789_Neuron_PolII_Rep1.bedGraph.gz',]
 
 ## for metaplotting the 'PTZ' is removed
-test <- test[!test$sample %in% 'cenp_PTZ_1',]
+## test <- test[!test$sample %in% 'cenp_PTZ_1',]
 ```
 
 
@@ -3564,7 +3567,7 @@ table(test$sample, test$status)
 
 Sampling, loess smoothing
 
-```{r, fig.width = 10, fig.height = 10}
+```{r, fig.width = 10, fig.height =7}
 set.seed(134)
 test[sample(1:nrow(test), size = 2e5),] %>% 
     ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
@@ -3580,7 +3583,7 @@ test[sample(1:nrow(test), size = 2e5),] %>%
 
 Medians
 
-```{r, fig.width = 10, fig.height = 10}
+```{r, fig.width = 10, fig.height = 7}
 set.seed(134)
 
 
@@ -3599,6 +3602,29 @@ test %>%
 
 ```
 
+
+Means
+
+```{r, fig.width = 10, fig.height = 7}
+set.seed(134)
+
+
+test %>%
+    group_by(cluster, sample, pos, status, category) %>%
+    summarise_at(vars(value),
+               list(value = mean)) %>% 
+    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
+    geom_line(lwd = 1) +
+    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
+    theme_bw() +
+    scale_x_discrete('normalized genebody position',
+                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
+    scale_color_brewer(palette="Set1") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
+
 Winsorized, medians
 
 
@@ -3613,7 +3639,7 @@ winsorize<-function(mat, rang){
 
 ```
 
-```{r, fig.width = 10, fig.height = 10}
+```{r, fig.width = 10, fig.height = 7}
 set.seed(134)
 
 
@@ -3632,16 +3658,16 @@ test %>%
 
 ```
 
-Even more winsorized, medians
+Winsorized, means
 
-```{r, fig.width = 10, fig.height = 10}
+```{r, fig.width = 10, fig.height = 7}
 set.seed(134)
 
 
 test %>%
     group_by(cluster, sample, pos, status, category) %>%
     summarise_at(vars(value),
-               list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>% 
+               list(value = function(x) mean(winsorize(x, rang = c(1, 99))))) %>% 
     ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
     geom_line(lwd = 1) +
     facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
@@ -3649,31 +3675,53 @@ test %>%
     scale_x_discrete('normalized genebody position',
                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
     scale_color_brewer(palette="Set1") +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
 
 ```
 
-Even more winsorized, smooth
 
-```{r, fig.width = 10, fig.height = 10}
-set.seed(134)
+<!-- Even more winsorized, medians -->
+
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
+<!-- set.seed(134) -->
 
 
-test %>%
-    group_by(cluster, sample, pos, status, category) %>%
-    summarise_at(vars(value),
-               list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>% 
-    ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) +
+<!-- test %>% -->
+<!--     group_by(cluster, sample, pos, status, category) %>% -->
+<!--     summarise_at(vars(value), -->
+<!--                list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>%  -->
+<!--     ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) + -->
+<!--     geom_line(lwd = 1) + -->
+<!--     facet_grid(factor(category, levels = selected)~cluster, scales = "free") + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized genebody position', -->
+<!--                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
 
-    geom_smooth(method = "loess", se = TRUE, span = 0.05) + 
-    facet_grid(factor(category, levels = selected)~cluster, scales = "free") +
-    theme_bw() +
-    scale_x_discrete('normalized genebody position',
-                     breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) +
-    scale_color_brewer(palette="Set1") +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+<!-- ``` -->
 
-```
+<!-- Even more winsorized, smooth -->
+
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
+<!-- set.seed(134) -->
+
+
+<!-- test %>% -->
+<!--     group_by(cluster, sample, pos, status, category) %>% -->
+<!--     summarise_at(vars(value), -->
+<!--                list(value = function(x) median(winsorize(x, rang = c(2, 8))))) %>%  -->
+<!--     ggplot(aes(x = pos, y = value,  color = status, group.by = sample)) + -->
+
+<!--     geom_smooth(method = "loess", se = TRUE, span = 0.05) +  -->
+<!--     facet_grid(factor(category, levels = selected)~cluster, scales = "free") + -->
+<!--     theme_bw() + -->
+<!--     scale_x_discrete('normalized genebody position', -->
+<!--                      breaks = c(10, 90), labels = c('TSS', 'TES'), limits = c(0, 10, 90, 100)) + -->
+<!--     scale_color_brewer(palette="Set1") + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+
+<!-- ``` -->
 
 
 ```{r}

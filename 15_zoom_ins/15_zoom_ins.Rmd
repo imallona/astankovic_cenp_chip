@@ -43,7 +43,7 @@ suppressPackageStartupMessages({
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
                       cache.lazy = FALSE,
-                      dev = "png",
+                      dev = c("svg", "png"),
                       fig.width = 4, fig.height = 4,
                       dev.args = list(png = list(type = "cairo")),
                       warning = FALSE, message = FALSE)
@@ -171,7 +171,7 @@ covs[['cenp_PTZ_23']] <- NULL
 
 ```{r}
 sml_genes <- ScoreMatrixList(covs, windows = genes_proms,
-                             bin.num = 100, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
+                             bin.num = 200, type = "auto",  strand.aware = TRUE, cores = NTHREADS,
                              is.noCovNA = TRUE)
 ```
 
@@ -267,14 +267,14 @@ harmonize_sml <- function(sml, clu){
 ```{r, fig.width = 8, fig.height = 6}
 sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
                           windows = genes_proms, strand.aware = TRUE,
-                          bin.num = 100)
+                          bin.num = 200)
 
 
 
                                 
 
 sml_genes_with_cpg <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes, sm_cpgi),
-                                genes_proms, bin.num = 100,
+                                genes_proms, bin.num = 200,
                                 strand.aware = TRUE,
                                 cores = NTHREADS),
                                 reorder = TRUE)
@@ -285,7 +285,7 @@ max(sml_genes_with_cpg_idx)
 length(sml_genes_with_cpg_idx)
 sml_genes_with_cpg
 ## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
-##                                 genes_proms, bin.num = 100,
+##                                 genes_proms, bin.num = 200,
 ##                                 strand.aware = TRUE,
 ##                                 cores = NTHREADS)
 
@@ -295,14 +295,14 @@ names(sml_genes_with_cpg)[length(names(sml_genes_with_cpg))] <- 'CpGi'
 
 ```{r}
 sml_genes_scaled_with_cpg <- intersectScoreMatrixList(ScoreMatrixList(c(sml_genes_scaled, sm_cpgi,
-                                genes_proms, bin.num = 100,
+                                genes_proms, bin.num = 200,
                                 strand.aware = TRUE,
                                 cores = NTHREADS)),
                                 reorder = TRUE)
 sml_genes_scaled_with_cpg_idx <- dimnames(sml_genes_scaled_with_cpg@.Data[[1]])[[1]]
 
 ## sml_with_cpg <- ScoreMatrixList(c(sml, sm_cpgi),
-##                                 genes_proms, bin.num = 100,
+##                                 genes_proms, bin.num = 200,
 ##                                 strand.aware = TRUE,
 ##                                 cores = NTHREADS)
 
@@ -1149,7 +1149,7 @@ if (DOWNSAMPLE) {
 }
 
 
-zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 100, type = "bam", param = param,
+zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 200,
                        strand.aware = TRUE)
 
 zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
@@ -1217,7 +1217,7 @@ if (DOWNSAMPLE) {
 }
 
 
-zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 200, type = "bam", param = param,
+zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 200,
                        strand.aware = TRUE)
 
 zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
@@ -1287,7 +1287,7 @@ if (DOWNSAMPLE) {
 }
 
 
-zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 50, type = "bam", param = param,
+zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 50,
                        strand.aware = TRUE)
 
 zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
@@ -1338,7 +1338,7 @@ if (DOWNSAMPLE) {
 }
 
 
-zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 50, type = "bam", param = param,
+zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 50,
                        strand.aware = TRUE)
 
 zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
@@ -1391,7 +1391,7 @@ if (DOWNSAMPLE) {
 }
 
 
-zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 200, type = "bam", param = param,
+zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 200,
                        strand.aware = TRUE)
 
 zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
@@ -1441,7 +1441,7 @@ if (DOWNSAMPLE) {
 }
 
 
-zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 50, type = "bam", param = param,
+zoom_sml <- ScoreMatrixList(covs, zoomed_proms, bin.num = 50,
                        strand.aware = TRUE)
 
 zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
