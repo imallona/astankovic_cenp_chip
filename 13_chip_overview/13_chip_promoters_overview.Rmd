@@ -45,7 +45,7 @@ suppressPackageStartupMessages({
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
                       cache.lazy = FALSE,
-                      dev = c("svg", "png"),
+                      dev = c("png", "svg"),
                       fig.width = 4, fig.height = 4,
                       dev.args = list(png = list(type = "cairo")),
                       warning = FALSE, message = FALSE)
@@ -228,7 +228,7 @@ rm(mat.list, mat2)
 
 #### Original
 
-```{r noscaling, fig.width = 8, fig.height = 6}
+```{r noscaling, fig.width = 8, fig.height = 6, dev = 'png'}
 set.seed(1)
 multiHeatMatrix(sml_genes, xcoords = c(0, 100),
                 group = as.factor(clu),
@@ -2701,7 +2701,7 @@ test %>% group_by(sample, cluster, pos) %>%
 
 Filter here requested datasets, only? or, rather, do that first?
 
-```{r, fig.height = 6, fig.width = 25}
+```{r, fig.height = 6, fig.width = 25, dev = 'png'}
 
 peaks <- ScoreMatrixList(peaks)
 

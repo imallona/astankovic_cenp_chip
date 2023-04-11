@@ -58,7 +58,7 @@ PUBLIC <- file.path('/home/imallona', 'cenp_chip', 'public')
 ## if downsampled, only chr19
 DOWNSAMPLE <- FALSE
 
-NUM_CLUSTERS <- 4
+NUM_CLUSTERS <- 3
 
 BEDGRAPHS <- file.path('/home/imallona', 'cenp_chip', 'merged_replicates')
 ```
@@ -106,6 +106,12 @@ genes_asis$ensembl <- mapIds(org.Mm.eg.db,
                               keytype = "ENTREZID",
                               multiVals = "first")
 ```
+
+<!-- Genes shorter than 200 bp removed - so we don't get things with CENP/promoter signal all across the genebody. -->
+
+<!-- ```{r} -->
+<!-- genes_asis <- genes_asis[width(genes_asis) >=200,] -->
+<!-- ``` -->
 
 Resize genes_asis with 10% up and downstream
 
@@ -1060,17 +1066,17 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
                                                            geneDownstream = "Downstream",
                                                            geneBody = "Gene body",
                                                            distalIntergenic = "Intergenic")),
-                               labelColors = c(promoter = "#D55E00",
-                                               geneDownstream = "#E69F00", 
-                                               geneBody = "#51C6E6",
-                                               distalIntergenic = "#AAAAAA",
-                                               exon = "#FFFFFF", 
-                                               intron = "#FFFFFF",
-                                               intergenic = "#FFFFFF",
-                                               utr5 = "#FFFFFF", 
-                                               utr3 = "#FFFFFF",
-                                               CDS = "#FFFFFF",
-                                               otherExon = "#FFFFFF"),
+                               ## labelColors = c(promoter = "#D55E00",
+                               ##                 geneDownstream = "#E69F00", 
+                               ##                 geneBody = "#51C6E6",
+                               ##                 distalIntergenic = "#AAAAAA",
+                               ##                 exon = "#FFFFFF", 
+                               ##                 intron = "#FFFFFF",
+                               ##                 intergenic = "#FFFFFF",
+                               ##                 utr5 = "#FFFFFF", 
+                               ##                 utr3 = "#FFFFFF",
+                               ##                 CDS = "#FFFFFF",
+                               ##                 otherExon = "#FFFFFF"),
                                promoterRegion=c(upstream=1000, downstream=1000),
                                geneDownstream=c(upstream=0, downstream=2000)))
 
@@ -1098,10 +1104,14 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
                                       plot = FALSE)
 
     foo <- list(cenp_hc_1 = as.data.frame(mcols(peaks$peaks$cenp_HC_1)),
-                cenp_ptz_1 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_1)))
+                cenp_hc_23 = as.data.frame(mcols(peaks$peaks$cenp_HC_23)),
+                cenp_ptz_1 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_1)),
+                cenp_ptz_23 = as.data.frame(mcols(peaks$peaks$cenp_PTZ_23)))
 
     foo$cenp_hc_1$origin <- 'cenp_hc_1'
     foo$cenp_ptz_1$origin <- 'cenp_ptz_1'
+    foo$cenp_hc_23$origin <- 'cenp_hc_23'
+    foo$cenp_ptz_23$origin <- 'cenp_ptz_23'
     
     foo <- do.call(rbind.data.frame, foo)
 

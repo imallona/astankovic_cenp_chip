@@ -43,7 +43,7 @@ suppressPackageStartupMessages({
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
                       cache.lazy = FALSE,
-                      dev = c("svg", "png"),
+                      dev = c("png", "svg"),
                       fig.width = 4, fig.height = 4,
                       dev.args = list(png = list(type = "cairo")),
                       warning = FALSE, message = FALSE)
