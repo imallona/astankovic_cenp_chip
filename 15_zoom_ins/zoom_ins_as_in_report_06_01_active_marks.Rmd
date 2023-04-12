@@ -35,7 +35,7 @@ suppressPackageStartupMessages({
 ```
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
-knitr::opts_chunk$set(autodep = TRUE, cache = TRUE,
+knitr::opts_chunk$set(autodep = TRUE, cache = FALSE,
                       cache.lazy = FALSE,
                       dev = c("png", "svg"),
                       fig.width = 5, fig.height = 5,
@@ -121,82 +121,82 @@ sml <- ScoreMatrixList(bams, all_proms, bin.num = 50, type = "bam", param = para
 names(sml) <- gsub('.bam', '', names(sml))
 ```
 
-Without scaling
+<!-- Without scaling -->
 
-```{r, fig.width = 12, fig.height = 8}
-## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)]
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+<!-- ## names(sml) <- sampleInfo$sampleName[match(names(sml), sampleInfo$fileName)] -->
 
-multiHeatMatrix(sml, xcoords = c(-2000, 1000),
-                clust.matrix = 1:2)
+<!-- multiHeatMatrix(sml, xcoords = c(-2000, 1000), -->
+<!--                 clust.matrix = 1:2) -->
 
-```
+<!-- ``` -->
 
-Scaled
-
-
-```{r, fig.width = 12, fig.height = 8}
-sml.scaled <- scaleScoreMatrixList(sml)
-set.seed(1)
-multiHeatMatrix(sml.scaled,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
-                clust.matrix = 1:2)
-```
+<!-- Scaled -->
 
 
-Is that signal in inputs CpG islands? mm38==mm10 CpGi
-
-```{r, fig.width = 12, fig.height = 8}
-## library(AnnotationHub)
-ah <- AnnotationHub()
-# retrieve CpG island data from annotationHub
-cpgi_query <- query(ah, c("Islands", "UCSC",  "Mus musculus"))
-
-cpgi <- ah[[names(cpgi_query)]]
-
-## if (DOWNSAMPLE) {
-##     cpgi <- keepSeqlevels(cpgi, "chr19", pruning.mode="coarse") 
-## }
-
-(chainfiles <- query(ah , c("mm9", "mm10", "chainfile")))
-
-cpgi_mm10 <- rtracklayer::liftOver(x = cpgi, chain = chainfiles[['AH14596']])
-
-if (DOWNSAMPLE) {
-    cpgi_mm10 <- keepSeqlevels(cpgi_mm10, "chr19", pruning.mode="coarse") 
-}
-```
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+<!-- sml.scaled <- scaleScoreMatrixList(sml) -->
+<!-- set.seed(1) -->
+<!-- multiHeatMatrix(sml.scaled, -->
+<!--                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
+<!-- ``` -->
 
 
-```{r, fig.width = 12, fig.height = 8}
+<!-- Is that signal in inputs CpG islands? mm38==mm10 CpGi -->
 
-sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10),
-                          windows = all_proms, strand.aware = TRUE)
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
+<!-- ## library(AnnotationHub) -->
+<!-- ah <- AnnotationHub() -->
+<!-- # retrieve CpG island data from annotationHub -->
+<!-- cpgi_query <- query(ah, c("Islands", "UCSC",  "Mus musculus")) -->
+
+<!-- cpgi <- ah[[names(cpgi_query)]] -->
+
+<!-- ## if (DOWNSAMPLE) { -->
+<!-- ##     cpgi <- keepSeqlevels(cpgi, "chr19", pruning.mode="coarse")  -->
+<!-- ## } -->
+
+<!-- (chainfiles <- query(ah , c("mm9", "mm10", "chainfile"))) -->
+
+<!-- cpgi_mm10 <- rtracklayer::liftOver(x = cpgi, chain = chainfiles[['AH14596']]) -->
+
+<!-- if (DOWNSAMPLE) { -->
+<!--     cpgi_mm10 <- keepSeqlevels(cpgi_mm10, "chr19", pruning.mode="coarse")  -->
+<!-- } -->
+<!-- ``` -->
 
 
-sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi),
-                                all_proms, bin.num = 50,
-                                strand.aware = TRUE)
+<!-- ```{r, fig.width = 12, fig.height = 8} -->
 
-names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi'
-
-set.seed(1)
-multiHeatMatrix(sml_with_cpg,
-                xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster,
-                clust.matrix = 1:2)
-```
+<!-- sm_cpgi <- ScoreMatrixBin(target = do.call(c, cpgi_mm10), -->
+<!--                           windows = all_proms, strand.aware = TRUE) -->
 
 
-```{r}
+<!-- sml_with_cpg <- ScoreMatrixList(c(sml.scaled, sm_cpgi), -->
+<!--                                 all_proms, bin.num = 50, -->
+<!--                                 strand.aware = TRUE) -->
+
+<!-- names(sml_with_cpg)[length(names(sml_with_cpg))] <- 'CpGi' -->
+
+<!-- set.seed(1) -->
+<!-- multiHeatMatrix(sml_with_cpg, -->
+<!--                 xcoords = c(-2000, 1000), clustfun = function(x) kmeans(x, centers = 4)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
+<!-- ``` -->
 
 
-plotMeta(sml.scaled, xcoords=c(-2000, 1000))
+<!-- ```{r} -->
 
-par(mar=c(5, 4, 4, 8), xpd=TRUE)
 
-legend(1200, 0.10,
-       legend = names(sml.scaled), col = as.numeric(as.factor(names(sml.scaled))),
-       pch =1) 
-```
+<!-- plotMeta(sml.scaled, xcoords=c(-2000, 1000)) -->
+
+<!-- par(mar=c(5, 4, 4, 8), xpd=TRUE) -->
+
+<!-- legend(1200, 0.10, -->
+<!--        legend = names(sml.scaled), col = as.numeric(as.factor(names(sml.scaled))), -->
+<!--        pch =1)  -->
+<!-- ``` -->
 
 
 <!-- ```{r} -->
@@ -323,7 +323,7 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
 } else {
-    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
+    zoomed_proms <- keepSeqlevels(zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -334,14 +334,14 @@ zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
 names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
 ```
 
-```{r , fig.width = 12, fig.height = 8}
-multiHeatMatrix(zoom_sml.scaled,
-                xcoords = c(-down, up),
-                common.scale = TRUE,
-                clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:2)
+<!-- ```{r , fig.width = 12, fig.height = 8} -->
+<!-- multiHeatMatrix(zoom_sml.scaled, -->
+<!--                 xcoords = c(-down, up), -->
+<!--                 common.scale = TRUE, -->
+<!--                 clustfun = function(x) kmeans(x, centers = k)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
 
-```
+<!-- ``` -->
 
 ```{r}
 
@@ -372,7 +372,9 @@ for (i in seq(-down, up, by = 147)) {
 }
 ```
 
-
+```{r}
+rm(zoom_sml.scaled)
+```
 
 ## 500 nt up and down, 5 clusters
 
@@ -387,7 +389,7 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
 } else {
-    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
+    zoomed_proms <- keepSeqlevels(zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -399,15 +401,15 @@ names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
 
 ```
 
-```{r , fig.width = 12, fig.height = 8}
-multiHeatMatrix(zoom_sml.scaled,
-                xcoords = c(-down, up),
-                common.scale = TRUE,
-                ## col = c('lightgray', 'blue'),
-                clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:2)
+<!-- ```{r , fig.width = 12, fig.height = 8} -->
+<!-- multiHeatMatrix(zoom_sml.scaled, -->
+<!--                 xcoords = c(-down, up), -->
+<!--                 common.scale = TRUE, -->
+<!--                 ## col = c('lightgray', 'blue'), -->
+<!--                 clustfun = function(x) kmeans(x, centers = k)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
 
-```
+<!-- ``` -->
 
 
 ```{r}
@@ -439,14 +441,16 @@ for (i in seq(-down, up, by = 147)) {
 }
 ```
 
-
+```{r}
+rm(zoom_sml.scaled)
+```
 
 ## 150 nt up and 50 down, 5 clusters
 
 ```{r}
 
-down <- 150
-up <- 50
+down <- 50
+up <- 150
 k <- 5
 
 zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
@@ -454,7 +458,7 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
 } else {
-    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
+    zoomed_proms <- keepSeqlevels(zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
  
 
@@ -465,19 +469,18 @@ zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
 names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
 ```
 
-```{r , fig.width = 12, fig.height = 8}
-multiHeatMatrix(zoom_sml.scaled,
-                xcoords = c(-down, up),
-                common.scale = TRUE,
-                ## col = c('lightgray', 'blue'),
-                clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:2)
+<!-- ```{r , fig.width = 12, fig.height = 8} -->
+<!-- multiHeatMatrix(zoom_sml.scaled, -->
+<!--                 xcoords = c(-down, up), -->
+<!--                 common.scale = TRUE, -->
+<!--                 ## col = c('lightgray', 'blue'), -->
+<!--                 clustfun = function(x) kmeans(x, centers = k)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
 
-```
+<!-- ``` -->
 
 
 ```{r}
-
 plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          centralTrend = 'mean',
          dispersion = 'se',
@@ -487,7 +490,9 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
                       rep('gray', 1), rep ('darkgrey', 1)))
 ```
 
-
+```{r}
+rm(zoom_sml.scaled)
+```
 
 ## 50 nt up and 150 down, 10 clusters
 
@@ -502,7 +507,7 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
 } else {
-    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
+    zoomed_proms <- keepSeqlevels(zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -513,19 +518,18 @@ zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
 names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
 ```
 
-```{r , fig.width = 12, fig.height = 8}
-multiHeatMatrix(zoom_sml.scaled,
-                xcoords = c(-down, up),
-                common.scale = TRUE,
-                ## col = c('lightgray', 'blue'),
-                clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:2)
+<!-- ```{r , fig.width = 12, fig.height = 8} -->
+<!-- multiHeatMatrix(zoom_sml.scaled, -->
+<!--                 xcoords = c(-down, up), -->
+<!--                 common.scale = TRUE, -->
+<!--                 ## col = c('lightgray', 'blue'), -->
+<!--                 clustfun = function(x) kmeans(x, centers = k)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
 
-```
+<!-- ``` -->
 
 
 ```{r}
-
 plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
          centralTrend = 'mean',
          dispersion = 'se',
@@ -536,7 +540,9 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
 ```
 
 
-
+```{r}
+rm(zoom_sml.scaled)
+```
 
 
 ## 100 nt up and down, 5 clusters
@@ -552,7 +558,7 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
 } else {
-    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
+    zoomed_proms <- keepSeqlevels(zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -563,14 +569,14 @@ zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
 names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
 ```
 
-```{r , fig.width = 12, fig.height = 8}
-multiHeatMatrix(zoom_sml.scaled,
-                xcoords = c(-down, up),
-                common.scale = TRUE,
-                ## col = c('lightgray', 'blue'),
-                clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:2)
-```
+<!-- ```{r , fig.width = 12, fig.height = 8} -->
+<!-- multiHeatMatrix(zoom_sml.scaled, -->
+<!--                 xcoords = c(-down, up), -->
+<!--                 common.scale = TRUE, -->
+<!--                 ## col = c('lightgray', 'blue'), -->
+<!--                 clustfun = function(x) kmeans(x, centers = k)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
+<!-- ``` -->
 
 ```{r}
 plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
@@ -597,7 +603,7 @@ zoomed_proms <- promoters(txdb, upstream = up, downstream = down)
 if (DOWNSAMPLE) {
     zoomed_proms <- keepSeqlevels(zoomed_proms, "chr19", pruning.mode="coarse")
 } else {
-    zoomed_proms <- keepSeqlevels((zoomed_proms, allowed_chr, pruning.mode="coarse")
+    zoomed_proms <- keepSeqlevels(zoomed_proms, allowed_chr, pruning.mode="coarse")
 }
 
 
@@ -608,15 +614,15 @@ zoom_sml.scaled <- scaleScoreMatrixList(zoom_sml)
 names(zoom_sml.scaled) <- gsub('.bam', '', names(zoom_sml.scaled))
 ```
 
-```{r , fig.width = 12, fig.height = 8}
-multiHeatMatrix(zoom_sml.scaled,
-                xcoords = c(-down, up),
-                common.scale = TRUE,
-                ## col = c('lightgray', 'blue'),
-                clustfun = function(x) kmeans(x, centers = k)$cluster,
-                clust.matrix = 1:2)
+<!-- ```{r , fig.width = 12, fig.height = 8} -->
+<!-- multiHeatMatrix(zoom_sml.scaled, -->
+<!--                 xcoords = c(-down, up), -->
+<!--                 common.scale = TRUE, -->
+<!--                 ## col = c('lightgray', 'blue'), -->
+<!--                 clustfun = function(x) kmeans(x, centers = k)$cluster, -->
+<!--                 clust.matrix = 1:2) -->
 
-```
+<!-- ``` -->
 
 
 ```{r}
@@ -631,7 +637,9 @@ plotMeta(zoom_sml.scaled, profile.names = names(zoom_sml.scaled),
 ```
 
 
-
+```{r}
+rm(zoom_sml.scaled)
+```
 
 
 ```{r, cache = FALSE}
