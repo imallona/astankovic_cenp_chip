@@ -133,7 +133,7 @@
 ln -s ~/cenp_chip/data//20201030.B-1_Sample_R1.fastq.gz input_HC_1_20201030.B-1_R1.fastq.gz
 ln -s  ~/cenp_chip/data//20201030.B-2_Sample_R1.fastq.gz input_PTZ_1_20201030.B-2_R1.fastq.gz
 ln -s  ~/cenp_chip/data//20201030.B-3_Sample_R1.fastq.gz chip_HC_1_20201030.B-3_R1.fastq.gz
-ln -s  ~/cenp_chip/data//20201030.B-4_Sample_R1.fastq.gz chip_PTZ_1_20201030.B-4_Sample_R1.fastq.gz
+ln -s  ~/cenp_chip/data//20201030.B-4_Sample_R1.fastq.gz chip_PTZ_1_20201030.B-4_R1.fastq.gz
 ln -s ~/cenp_chip/data//20201030.B-1_Sample_R2.fastq.gz input_HC_1_20201030.B-1_R2.fastq.gz
 ln -s   ~/cenp_chip/data//20201030.B-2_Sample_R2.fastq.gz input_PTZ_1_20201030.B-2_R2.fastq.gz
 ln -s  ~/cenp_chip/data//20201030.B-3_Sample_R2.fastq.gz  chip_HC_1_20201030.B-3_R2.fastq.gz
@@ -147,7 +147,7 @@ ln -s   ~/cenp_chip/data//20201030.B-4_Sample_R2.fastq.gz chip_PTZ_1_20201030.B-
 
 ln -s  ~/cenp_chip/data//20210910.A-o25873_1_3-A3_ChipHC_3_R1.fastq.gz chip_PTZ_3_20210910.A-o25873_1_3-A3_R1.fastq.gz # corrected
 ln -s  ~/cenp_chip/data//20210910.A-o25873_1_3-A3_ChipHC_3_R2.fastq.gz chip_PTZ_3_20210910.A-o25873_1_3-A3_R2.fastq.gz # corrected
-ln -s  ~/cenp_chip/data//20210910.A-o25873_1_4-A4_ChipPTZ_3_R1.fastq.gz  chip_HC_3_20210910.A-o25873_1_4-A4_R1.fastq.gz # corrected
+ln -s  ~/cenp_chip/data//20210910.A-o25873_1_4-A4_ChipPTZ_3_R1.fastq.gz chip_HC_3_20210910.A-o25873_1_4-A4_R1.fastq.gz # corrected
 ln -s  ~/cenp_chip/data//20210910.A-o25873_1_4-A4_ChipPTZ_3_R2.fastq.gz chip_HC_3_20210910.A-o25873_1_4-A4_R2.fastq.gz # corrected
 ln -s  ~/cenp_chip/data//20210910.A-o25873_1_7-B3_ChipHC_2_R1.fastq.gz chip_PTZ_2_20210910.A-o25873_1_7-B3_R1.fastq.gz # corrected
 ln -s  ~/cenp_chip/data//20210910.A-o25873_1_7-B3_ChipHC_2_R2.fastq.gz chip_PTZ_2_20210910.A-o25873_1_7-B3_R2.fastq.gz # corrected
@@ -157,3 +157,27 @@ ln -s  ~/cenp_chip/data//20210910.A-o25873_1_8-B4_ChipPTZ_2_R2.fastq.gz chip_HC_
 
 # GEO spreadsheet
 # https://docs.google.com/spreadsheets/d/1epqKNISpafcBTi7wu7KW8jXKGB9DWX2NCreFcn81gCg/edit#gid=980870959
+
+mkdir bws
+cd $_
+
+
+# ln -s /home/imallona/cenp_chip/merged_replicates/chip_HC_1_cov_bga.bedgraph.gz chip_HC_1_cov_bga.bedgraph.gz
+# ln -s /home/imallona/cenp_chip/merged_replicates/chip_PTZ_1_cov_bga.bedgraph.gz chip_PTZ_1_cov_bga.bedgraph.gz
+# ln -s /home/imallona/cenp_chip/merged_replicates/chip_HC_2_3_cov_bga.bedgraph.gz chip_PTZ_2_3_cov_bga.bedgraph.gz ## corrected
+# ln -s /home/imallona/cenp_chip/merged_replicates/chip_PTZ_2_3_cov_bga.bedgraph.gz chip_HC_2_3_cov_bga.bedgraph.gz ## corrected
+
+ln -s ~/cenp_chip/mapping_without_dupes/bamCoverage/input_HC_1.seq_depth_norm.bw .
+ln -s ~/cenp_chip/mapping_without_dupes/bamCoverage/input_PTZ_1.seq_depth_norm.bw .
+
+ln -s ~/cenp_chip/mapping_without_dupes/bamCoverage/chip_HC_1.seq_depth_norm.bw .
+ln -s ~/cenp_chip/mapping_without_dupes/bamCoverage/chip_PTZ_1.seq_depth_norm.bw .
+
+ln -s ~/cenp_chip/mapping_without_dupes/bamCoverage/chip_PTZ_3.seq_depth_norm.bw chip_HC_3.seq_depth_norm.bw # corrected
+ln -s ~/cenp_chip/mapping_without_dupes/bamCoverage/chip_PTZ_2.seq_depth_norm.bw chip_HC_2.seq_depth_norm.bw # corrected
+
+ln -s ~/cenp_chip/mapping_without_dupes/bamCoverage/chip_HC_3.seq_depth_norm.bw chip_PTZ_3.seq_depth_norm.bw # corrected
+ln -s ~/cenp_chip/mapping_without_dupes/bamCoverage/chip_HC_2.seq_depth_norm.bw chip_PTZ_2.seq_depth_norm.bw # corrected
+
+# do we have coverages for inputs?
+# not really, generate
