@@ -1042,8 +1042,11 @@ test %>% group_by(sample, cluster, pos) %>%
 Is CENP binding promoters anyway? Check, iteratively, the top signal, i.e. quantile 80 (top 20%), quantile 90 (top 10%) etc.
 
 
-```{r fig.height = 4, fig.width = 8, results = 'asis'}
-for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
+```{r fig.height = 4, fig.width = 8, results = 'asis', cache = FALSE}
+
+enrich <- list()
+
+for (quant in c(0.2, 0.5, 0.8, 0.9, 0.925, 0.95, 0.975, 0.99)) {
 
     cat('## Quantile', quant, ' {.tabset .tabset-pills} \n\n')
     sel <- list()
@@ -1109,16 +1112,23 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
 
     foo$cenp_hc_1$origin <- 'cenp_hc_1'
     foo$cenp_ptz_1$origin <- 'cenp_ptz_1'
+   
     ## foo$cenp_hc_23$origin <- 'cenp_hc_23'
     ## foo$cenp_ptz_23$origin <- 'cenp_ptz_23'
     
     foo <- do.call(rbind.data.frame, foo)
+    foo$quantile <- quant
+    
 
     ## ggplot(foo, aes(fill=geneLevel, y=cov, x=origin)) + 
     ##     geom_bar(position="fill", stat="identity") +
     ##     theme_bw()
 
     foo$geneLevel <- gsub('distalIntergenic', 'intergenic', foo$geneLevel)
+
+    
+    enrich[[as.character(quant)]] <- foo %>% group_by(geneLevel, origin) %>% 
+        summarize(count = length(geneLevel))
 
     cat('\n\n')
     
@@ -1138,10 +1148,51 @@ for (quant in c(0.5, 0.8, 0.9, 0.95, 0.99)) {
     cat('\n\n')
 }
 
+
 ```
 
 
 
+## Aggregated
+
+
+Caption: Genomic distribution of CENP-A-bound sites stratified by signal intensity; percentile 99 depicts the CENP-A-bound regions with the 1% highest signal (read counts).
+
+Caption2: Genomic distribution of CENP-A-bound sites stratified by signal intensity; percentile 99 depicts the top 1% signal (i.e. ChIP read counts).
+
+
+
+```{r, fig.width = 7, fig.height = 4}
+
+## do.call(rbind.data.frame, enrich)
+for (quant in names(enrich)) {
+    enrich[[quant]] <- as.data.frame(enrich[[quant]])
+    enrich[[quant]]$percentile <- as.numeric(quant)*100
+}
+
+enrich$percentile <- as.character(enrich$percentile)
+enrich <- do.call(rbind.data.frame, enrich)
+
+saveRDS(object = enrich, file = 'enrich.rds')
+
+p <- ggplot(enrich, aes(x=percentile, y = count, fill = geneLevel)) +
+    geom_bar(position="fill", stat="identity") +
+    facet_wrap(~origin) +
+    ylab('proportion of CENP-A signal') +
+    xlab('signal strength percentile') +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+print(p)
+
+ggsave(p, filename = 'enrichment.svg', width = 6, height = 4)
+ggsave(p, filename = 'enrichment.png', width = 6, height = 4)
+
+```
+
+```{r, cache = FALSE}
+## knitr::knit_exit()
+```
 
 
 
@@ -2317,9 +2368,6 @@ get(gse)
 
 ```
 
-```{r}
-
-````
 
 
 
